@@ -930,8 +930,13 @@ $("print-day").addEventListener("click",function(){ try{ window.print(); }catch(
 $("save-file").addEventListener("click",function(){
   var day=load("mds.day",[]); if(!day.length){ $("report-msg").textContent="Nothing to save yet."; return; }
   var name="stet-day-"+(TEAM.date||new Date().toISOString().slice(0,10))+(TEAM.team?"-"+TEAM.team.replace(/[^a-z0-9]+/gi,"-").toLowerCase():"")+".json";
-  try{ var a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([JSON.stringify({app:"stet",v:1,form:profileId,team:TEAM,day:day})],{type:"application/json"})); a.download=name; document.body.appendChild(a); a.click(); a.remove(); $("report-msg").textContent="Saved "+day.length+" consultations to "+name+". Pass it to the person collating."; }
-  catch(e){ $("report-msg").textContent="This browser would not save a file."; }
+  var text=JSON.stringify({app:"stet",v:1,form:profileId,team:TEAM,day:day}), done=function(){ $("report-msg").textContent="Saved "+day.length+" consultations to "+name+". Pass it to the person collating."; };
+  var plain=function(){ try{ var a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([text],{type:"application/json"})); a.download=name; document.body.appendChild(a); a.click(); a.remove(); done(); } catch(e){ $("report-msg").textContent="This browser would not save a file."; } };
+  /* inside the Claude app a page may not download by itself: it has to ask through the downloads capability */
+  if(window.claude&&typeof window.claude.use==="function"){
+    window.claude.use("downloads").then(function(dl){ if(!dl) return plain(); return dl.save({filename:name,data:text}).then(done); })
+      .catch(function(err){ $("report-msg").textContent=err&&err.code==="declined"?"Not saved: you said no to the file.":"The file could not be saved here."; });
+  } else plain();
 });
 $("add-file").addEventListener("click",function(){ $("file-in").value=""; $("file-in").click(); });
 function cleanRow(r){
