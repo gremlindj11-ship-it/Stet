@@ -245,6 +245,17 @@ body:not(.nokeys) #keys-on{display:none}
 .nview mark.on{background:var(--hi);color:#000}
 .frow.flash{outline:2px solid var(--hi);outline-offset:2px;border-radius:6px}
 .frow[data-f] .rh{cursor:pointer}
+
+#checks{margin:0;padding-left:18px;font-size:14px}#checks li{margin:3px 0}
+table.kinds{border-collapse:collapse;margin:4px 0;font-size:14px}table.kinds td{padding:3px 14px 3px 0;border-bottom:1px solid var(--line)}table.kinds td.n{text-align:right;font-variant-numeric:tabular-nums}
+.printonly{display:none}
+@media print{
+  :root,:root[data-theme]{--bg:#fff!important;--surface:#fff!important;--chip:#fff!important;--ink:#000!important;--muted:#333!important;--line:#999!important;--rule:#000!important}
+  body{background:#fff;color:#000} .wrap{max-width:none;padding:0;height:auto!important;display:block!important}
+  header,footer,button,select,input,.toast,.tiles,#checks-panel,#v-capture,#v-study,#sheet,#v-report>.panel:first-child,#v-report>.panel:last-child{display:none!important}
+  #v-report{display:block!important} .panel{border:0;padding:0} .tscroll{overflow:visible;max-height:none} .bar{display:none} .printonly{display:block;font-weight:700;margin:0 0 8px}
+  #tally{font-size:11px} #tally td,#tally th{padding:1px 6px}
+}
 body[data-view="capture"] footer{display:none}
 body:not([data-view="capture"]) .brow select{display:none}
 @media (min-width:821px){body[data-view="capture"] .wrap{max-width:980px}.tl,.chip.tl{min-height:44px;font-size:15px}}
@@ -311,14 +322,23 @@ body:not([data-view="capture"]) .brow select{display:none}
     </div>
   </div>
   <div class="tiles" id="tiles"></div>
+  <div class="panel" id="checks-panel" style="margin-bottom:14px"><h2>Before you send</h2><ul id="checks"></ul></div>
   <div class="panel">
     <h2>Daily tally</h2>
+    <p id="print-head" class="printonly"></p>
     <div class="tscroll"><table id="tally"></table></div>
+    <div id="other-kinds"></div>
     <div class="row">
       <select id="export-kind" aria-label="Export format"><option value="tally">Daily tally by item number</option><option value="lines">Line list, one row per consultation</option><option value="mm_dr">MDS Maker layout: daily report (DR)</option><option value="mm_ip">MDS Maker layout: patients (IP)</option></select>
       <button id="copy-report">Copy as CSV</button>
       <button id="load-day">Add 8 example consultations</button>
       <button id="clear-day">Clear the day</button>
+    </div>
+    <div class="row">
+      <button id="print-day">Print</button>
+      <button id="save-file">Save the day as a file</button>
+      <button id="add-file">Add another phone's file</button>
+      <input type="file" id="file-in" accept=".json,application/json" hidden>
     </div>
     <div class="toast" id="report-msg" role="status"></div>
   </div>
@@ -391,6 +411,13 @@ var ALL=[].concat(SEX,EVENTS,PROCS,OUTCOMES,RELATION,PROT);
 /* short chip labels for the one-screen capture view; the full form wording is in the "All" list, the tally and the exports */
 var SHORT={1:"Male",2:"Female",3:"Pregnant",4:"Head/spine major",5:"Torso major",6:"Limb major",7:"Moderate injury",8:"Minor injury",9:"Resp. infection",10:"Watery diarrhoea",11:"Bloody diarrhoea",12:"Acute jaundice",13:"Susp. measles",14:"Susp. meningitis",15:"Susp. tetanus",16:"Flaccid paralysis",17:"Haem. fever",18:"Fever, unknown",19:"Surgical emerg.",20:"Medical emerg.",21:"Skin disease",22:"Acute mental health",23:"Obstetric compl.",24:"Severe malnutrition",25:"Other diagnosis",26:"Major proc.",27:"Minor proc.",28:"Amputation",29:"Vaginal delivery",30:"Caesarean",31:"Obstetric, other",32:"No follow-up",33:"Follow-up",34:"Admitted",35:"Referred",36:"Against advice",37:"Dead on arrival",38:"Death in facility",39:"Long-term rehab",40:"Direct",41:"Indirect",42:"Unrelated",43:"Vulnerable child",44:"Vulnerable adult",45:"SGBV",46:"Violence, non-SGBV"};
 function shortName(id){return SHORT[id]||itemName(id);}
+/* Most patients in recent responses fall into "Other diagnosis". Keep what kind, so the day's
+   tally can show it and the coordination cell can see what to name items 19 to 22 after. */
+var OTHER_ID=25;
+var OTHER_KINDS=[["Hypertension",/hypertens\w*|high blood pressure|\bhtn\b/i],["Diabetes",/diabet\w*|\bt[12]dm\b|insulin|metformin|high (?:blood )?sugar/i],["Heart disease",/angina|heart failure|\bihd\b|palpitation\w*/i],
+  ["Chronic lung disease",/\bcopd\b|chronic bronchitis|inhaler/i],["Muscle or joint pain",/back pain|joint pain|arthritis|knee pain|neck pain|musculoskeletal|\bmsk\b/i],["Epilepsy",/epilep\w*/i],
+  ["Stomach or gut",/gastritis|dyspepsia|heartburn|reflux|constipat\w*|epigastric/i],["Eye or ear",/conjunctivitis|red eye|ear ?ache|otitis/i],["Pregnancy check",/antenatal|\banc\b/i],
+  ["Urinary",/\buti\b|dysuria|urinary/i],["Headache",/headache|migraine/i],["Medicines ran out",/refill|ran out of|lost (?:his |her |their )?(?:tablets|medic\w*)/i],["Something else",null]];
 /* offline recommendation helpers */
 function outcomePrior(ev){ if(ev===4||ev===5||ev===6) return [35,34]; if(ev===19||ev===20) return [34,35]; if(ev===7) return [33,32]; return [32,33]; }
 var PROFILES={
@@ -467,8 +494,8 @@ function buildExport(kind,day){
   if(kind==="mm_ip") return mmIP(day);
   if(kind==="lines"){
     var n=function(v){return v===null||v===undefined?"":no(v);};
-    rows=["time,sex,age_band,health_event,outcome,relation,procedures,protection"];
-    day.forEach(function(r){rows.push([new Date(r.t).toISOString(),n(r.sex),r.age||"",n(r.event),n(r.outcome),n(r.relation),(r.procs||[]).map(function(x){return no(x);}).join(";"),(r.prot||[]).map(function(x){return no(x);}).join(";")].join(","));});
+    rows=["time,sex,age_band,health_event,outcome,relation,procedures,protection,other_kind"];
+    day.forEach(function(r){rows.push([new Date(r.t).toISOString(),n(r.sex),r.age||"",n(r.event),n(r.outcome),n(r.relation),(r.procs||[]).map(function(x){return no(x);}).join(";"),(r.prot||[]).map(function(x){return no(x);}).join(";"),csvCell(r.sub||"")].join(","));});
     return rows.join("\n");
   }
   var t=tally(day); rows=["no,item,under5,total"];
@@ -524,6 +551,7 @@ function classify(note){
      [9,/cough\w*|pneumonia|sore throat|respiratory infection|\buri\b|\blrti\b/i],[24,/\bmuac\b|wasting|malnutrition|\bsam\b/i],[22,/panic\w*|acute stress|psychosis|psychotic|suicid\w*/i],
      [21,/rash|scabies|impetigo|fungal|cellulitis/i],[18,/fever|febrile|pyrexia/i]];
     for(var i=0;i<med.length;i++){ if(hit(med[i][1])){out.event=med[i][0];break;} }
+    if(out.event===null){ for(var k2=0;k2<OTHER_KINDS.length;k2++){ if(OTHER_KINDS[k2][1]&&hit(OTHER_KINDS[k2][1])){ out.event=OTHER_ID; out.sub=OTHER_KINDS[k2][0]; break; } } }
   }
   // procedures
   cf="procs";
@@ -622,11 +650,12 @@ window.addEventListener("hashchange",route);
 /* ---------- capture ---------- */
 var CORE=["sex","age","event","outcome","relation"];
 var rec;
-function blank(){return {sex:{v:null,s:0},age:{v:null,s:0},event:{v:null,s:0},outcome:{v:null,s:0},relation:{v:null,s:0},procs:{},prot:{}};}
+function blank(){return {sex:{v:null,s:0},age:{v:null,s:0},event:{v:null,s:0},outcome:{v:null,s:0},relation:{v:null,s:0},procs:{},prot:{},sub:null};}
 /* s: 0 empty, 1 suggested, 2 confirmed */
 function applySuggestion(sg){
   lastSugg={event:sg.event,outcome:sg.outcome}; lastAlts=sg.alts||[];
   CORE.forEach(function(f){ if(rec[f].s===2) return; var v=sg[f]; rec[f]=(v===null||v===undefined)?{v:null,s:0}:{v:v,s:1}; });
+  if(rec.event.s!==2) rec.sub=rec.event.v===OTHER_ID?(sg.sub||rec.sub||null):null;
   ["procs","prot"].forEach(function(f){
     Object.keys(rec[f]).forEach(function(id){ if(rec[f][id]===1) delete rec[f][id]; });
     (sg[f]||[]).forEach(function(id){ if(rec[f][id]!==2) rec[f][id]=1; });
@@ -701,7 +730,9 @@ function cmpFor(f){
   keys.forEach(function(k){ var c=lastCmp[k]; if(c===undefined) return; if(c==="agree") same++; else diff.push(k==="age"?String(c):no(c)+" "+shortName(c)); });
   return diff.length?{differ:diff.join(", ")}:(same?{agree:true}:null);
 }
+function evLabel(id){ return id===OTHER_ID&&rec.event.v===OTHER_ID&&rec.sub?"Other: "+rec.sub.toLowerCase():shortName(id); }
 function renderFields(){
+  if(rec.event.v!==OTHER_ID) rec.sub=null;
   var q=$("find").value.trim(), h="";
   if(q){
     var m=findMatches(q);
@@ -717,7 +748,7 @@ function renderFields(){
       if(cm&&cm.differ&&!fl) fl="<b>The rules read it as "+esc(cm.differ)+".</b> Two suggesters disagree: you decide.";
       if(cm&&cm.agree&&why) why+=" · rules agree";
       return '<div class="frow s'+(st<0?"n":st)+'" data-f="'+f+'"><div class="rh"><span class="rl">'+name+"</span>"+(f==="event"?'<span class="why warn" id="flag" title="'+esc(fl.replace(/<[^>]+>/g,""))+'">'+fl+"</span>":"")+(fl&&f!=="event"?'<span class="why warn">'+fl+"</span>":"")+(fl?"":'<span class="why">'+(why?"read: "+esc(why):"")+"</span>")+'<span class="rs">'+(st===2?"✓ ok":st===1?"check":st===0?"pick":"")+"</span></div>"; };
-    var some=function(f,cls){ return '<div class="tg '+cls+'">'+top3(f,freq).map(function(id){return tile(f,id,shortName(id),no(id),rec[f].v===id?rec[f].s:0);}).join("")+'<button type="button" class="tl more" data-more="'+f+'">All '+items(FIELD_LIST[f]).length+"</button></div>"; };
+    var some=function(f,cls){ return '<div class="tg '+cls+'">'+top3(f,freq).map(function(id){return tile(f,id,f==="event"?evLabel(id):shortName(id),no(id),rec[f].v===id?rec[f].s:0);}).join("")+'<button type="button" class="tl more" data-more="'+f+'">All '+items(FIELD_LIST[f]).length+"</button></div>"; };
     h+=head("who","Who")+'<div class="tg t3">'+items(SEX).map(function(o){return tile("sex",o.id,shortName(o.id),no(o.id),rec.sex.v===o.id?rec.sex.s:0);}).join("")+'</div><div class="tg t5">'+AGE.map(function(a){return tile("age",a,a,"",rec.age.v===a?rec.age.s:0);}).join("")+"</div></div>";
     var qt=function(a){ return '<button type="button" class="chip tl q" data-f="event" data-v="'+a.id+'" aria-pressed="false"><small>'+esc(a.label)+'</small><span><i>'+esc(no(a.id))+"</i> "+esc(shortName(a.id))+"</span></button>"; };
     h+=head("event","Event")+(asking()?'<div class="tg tq" style="grid-template-columns:'+lastQ.answers.map(function(){return "minmax(0,1.5fr)";}).join(" ")+' minmax(0,1fr) minmax(0,.85fr)">'+lastQ.answers.map(qt).join("")+'<button type="button" class="tl neither" data-neither="1">Neither</button><button type="button" class="tl more" data-more="event">All '+items(EVENTS).length+"</button></div>":some("event","t4"))+"</div>";
@@ -752,7 +783,11 @@ function renderSheet(){
         : '<button type="button" class="opt tl'+c+'" data-f="'+f+'" data-v="'+o.id+'" title="'+esc(itemName(o.id))+'" aria-pressed="'+(st===2)+'"><i>'+no(o.id)+"</i><span>"+esc(shortName(o.id))+"</span></button>";
     }).join("")+"</div>";
   };
-  if(sheetF==="also"){ block("Procedure","procs",items(PROCS)); block("Protection concern","prot",items(PROT)); }
+  if(sheetF==="sub"){
+    var kinds=OTHER_KINDS.map(function(k){return k[0];}).filter(function(k){return !q||k.toLowerCase().indexOf(q)>=0;});
+    h='<div class="sg">Optional. It stays on this device\'s tally; the WHO form still counts it as Other.</div><div class="tg t2">'+kinds.map(function(k){return '<button type="button" class="opt tl'+(rec.sub===k?" conf":"")+'" data-sub="'+esc(k)+'"><span>'+esc(k)+"</span></button>";}).join("")+"</div>";
+  }
+  else if(sheetF==="also"){ block("Procedure","procs",items(PROCS)); block("Protection concern","prot",items(PROT)); }
   else {
     var f=sheetF, all=items(FIELD_LIST[f]), likely=q?[]:recsFor(f,tally(load("mds.day",[])).count);
     if(likely.length&&likely.length<all.length) block("Likely",f,likely.map(function(id){return all.filter(function(o){return o.id===id;})[0];}));
@@ -764,7 +799,7 @@ function renderSheet(){
   $("sheet-list").innerHTML=h||'<p class="small">Nothing matches.</p>';
 }
 function openSheet(f){
-  sheetF=f; $("sheet-title").textContent=({event:"Health event",outcome:"Outcome",also:"Procedure or concern"})[f]||f;
+  sheetF=f; $("sheet-title").textContent=({event:"Health event",outcome:"Outcome",also:"Procedure or concern",sub:"What kind of other?"})[f]||f; $("sheet-defs").hidden=f==="sub";
   $("sheet-q").value=""; renderSheet(); $("sheet").hidden=false; $("sheet-close").focus();
 }
 function closeSheet(){ $("sheet").hidden=true; sheetF=null; }
@@ -791,11 +826,13 @@ document.addEventListener("keydown",function(e){
 });
 $("sheet-list").addEventListener("click",function(e){
   var b=e.target.closest(".opt"); if(!b||!sheetF) return;
+  if(sheetF==="sub"){ rec.sub=b.getAttribute("data-sub"); closeSheet(); renderFields(); return; }
   var f=b.getAttribute("data-f"), v=parseInt(b.getAttribute("data-v"),10), set=true;
   if(f==="procs"||f==="prot"){ if(rec[f][v]===2) delete rec[f][v]; else rec[f][v]=2; }
   else if(rec[f].v===v&&rec[f].s===2){ rec[f]={v:null,s:0}; set=false; }
   else rec[f]={v:v,s:2};
   renderFields();
+  if(f==="event"&&v===OTHER_ID&&set&&!rec.sub){ openSheet("sub"); return; }
   if(sheetF==="also"||!set) renderSheet(); else closeSheet();
 });
 var lastEvidence=[], lastYears=null;
@@ -837,7 +874,7 @@ $("fields").addEventListener("click",function(e){
   if(hit){
     f=hit.getAttribute("data-hf"); raw=hit.getAttribute("data-hv"); v=f==="age"?raw:parseInt(raw,10);
     if(f==="procs"||f==="prot") rec[f][v]=2; else rec[f]={v:v,s:2};
-    $("find").value=""; renderFields(); return;
+    $("find").value=""; renderFields(); if(f==="event"&&v===OTHER_ID&&!rec.sub) openSheet("sub"); return;
   }
   var m=e.target.closest(".more"); if(m){ openSheet(m.getAttribute("data-more")); return; }
   if(e.target.closest(".neither")&&lastQ){
@@ -850,6 +887,7 @@ $("fields").addEventListener("click",function(e){
   else if(rec[f].v===v&&rec[f].s===2) rec[f]={v:null,s:0};
   else rec[f]={v:v,s:2};
   renderFields();
+  if(f==="event"&&v===OTHER_ID&&rec.event.s===2&&!rec.sub) openSheet("sub");
 });
 $("confirm-all").addEventListener("click",function(){
   CORE.forEach(function(f){ if(rec[f].s===1) rec[f].s=2; });
@@ -864,6 +902,7 @@ $("save-rec").addEventListener("click",function(){
   ["procs","prot"].forEach(function(f){ row[f]=Object.keys(rec[f]).filter(function(id){return rec[f][id]===2;}).map(Number); });
   if(!n&&!row.procs.length&&!row.prot.length){ $("toast").textContent="Nothing confirmed yet. Tap the boxes that are right, then save."; return; }
   row.years=(row.age!==null&&lastYears!==null&&band(lastYears)===row.age)?lastYears:null;
+  row.sub=row.event===OTHER_ID?(rec.sub||null):null; row.id=row.t.toString(36)+Math.random().toString(36).slice(2,7);
   var day=load("mds.day",[]); day.push(row); save("mds.day",day);
   undoSnap={t:row.t,note:$("note").value,rec:JSON.stringify(rec)};
   resetCapture();
@@ -887,6 +926,35 @@ $("keys-off").addEventListener("click",function(){setKeys(false);});
 $("keys-on").addEventListener("click",function(){setKeys(true);});
 $("copy-gaps").addEventListener("click",function(){ var g=load("mds.gaps",[]); copy("time,form,question,offered,note\n"+g.map(function(x){return [new Date(x.t).toISOString(),x.form,x.question,x.offered,x.note].map(csvCell).join(",");}).join("\n"),$("gap-msg")); });
 $("clear-gaps").addEventListener("click",function(){ save("mds.gaps",[]); renderGaps(); $("gap-msg").textContent="Cleared."; });
+$("print-day").addEventListener("click",function(){ try{ window.print(); }catch(e){ $("report-msg").textContent="Printing is not available here."; } });
+$("save-file").addEventListener("click",function(){
+  var day=load("mds.day",[]); if(!day.length){ $("report-msg").textContent="Nothing to save yet."; return; }
+  var name="stet-day-"+(TEAM.date||new Date().toISOString().slice(0,10))+(TEAM.team?"-"+TEAM.team.replace(/[^a-z0-9]+/gi,"-").toLowerCase():"")+".json";
+  try{ var a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([JSON.stringify({app:"stet",v:1,form:profileId,team:TEAM,day:day})],{type:"application/json"})); a.download=name; document.body.appendChild(a); a.click(); a.remove(); $("report-msg").textContent="Saved "+day.length+" consultations to "+name+". Pass it to the person collating."; }
+  catch(e){ $("report-msg").textContent="This browser would not save a file."; }
+});
+$("add-file").addEventListener("click",function(){ $("file-in").value=""; $("file-in").click(); });
+function cleanRow(r){
+  if(!r||typeof r!=="object") return null;
+  var one=function(v,list){ return typeof v==="number"&&list.some(function(o){return o.id===v;})?v:null; }, many=function(a,list){ return (Array.isArray(a)?a:[]).filter(function(v){return one(v,list)!==null;}); };
+  var o={t:typeof r.t==="number"?r.t:Date.now(),sex:one(r.sex,SEX),age:BANDS.indexOf(r.age)>=0?r.age:null,event:one(r.event,EVENTS),outcome:one(r.outcome,OUTCOMES),relation:one(r.relation,RELATION),procs:many(r.procs,PROCS),prot:many(r.prot,PROT),
+    years:typeof r.years==="number"&&r.years>=0&&r.years<130?r.years:null,sub:null,id:typeof r.id==="string"?r.id.slice(0,24):null};
+  if(o.event===OTHER_ID&&typeof r.sub==="string"&&OTHER_KINDS.some(function(k){return k[0]===r.sub;})) o.sub=r.sub;
+  return (o.sex===null&&o.age===null&&o.event===null&&o.outcome===null&&o.relation===null&&!o.procs.length&&!o.prot.length)?null:o;
+}
+$("file-in").addEventListener("change",function(){
+  var f=$("file-in").files[0]; if(!f) return; var rd=new FileReader();
+  rd.onload=function(){
+    var d=null; try{ d=JSON.parse(rd.result); }catch(e){}
+    if(!d||d.app!=="stet"||!Array.isArray(d.day)){ $("report-msg").textContent="That is not a Stet day file."; return; }
+    var day=load("mds.day",[]), key=function(r){ return r.id||JSON.stringify([r.t,r.sex,r.age,r.event,r.outcome,r.relation,r.procs,r.prot]); }, have={}, added=0, dup=0, bad=0;
+    day.forEach(function(r){have[key(r)]=1;});
+    d.day.forEach(function(r){ var c=cleanRow(r); if(!c){bad++;return;} if(have[key(c)]){dup++;return;} have[key(c)]=1; day.push(c); added++; });
+    save("mds.day",day); renderReport();
+    $("report-msg").textContent="Added "+added+" consultation"+(added===1?"":"s")+(d.team&&d.team.team?" from "+String(d.team.team).slice(0,60):"")+"."+(dup?" "+dup+" were already here.":"")+(bad?" "+bad+" could not be read.":"");
+  };
+  rd.readAsText(f);
+});
 var ex=$("examples");
 ex.innerHTML='<option value="">Examples</option>'+EXAMPLES.map(function(e,i){return '<option value="'+i+'">'+esc(e.label)+"</option>";}).join("");
 ex.addEventListener("change",function(){ if(ex.value==="") return; rec=blank(); $("note").value=EXAMPLES[+ex.value].text; ex.value=""; $("toast").textContent=""; $("ai-msg").textContent=""; runRules(); });
@@ -975,6 +1043,18 @@ function renderReport(){
     items(s[1]).forEach(function(o){ var c=count[o.id]||0; h+='<tr><td class="no">'+no(o.id)+"</td><td>"+esc(itemName(o.id))+(c?'<span class="bar" style="width:'+Math.round(90*c/max)+'px"></span>':"")+'</td><td class="n">'+(u5[o.id]||0)+'</td><td class="n">'+c+"</td></tr>"; });
   });
   $("tally").innerHTML=h;
+  var kinds={}, others=0; day.forEach(function(r){ if(r.event===OTHER_ID){ others++; var k=r.sub||"Kind not recorded"; kinds[k]=(kinds[k]||0)+1; } });
+  var kl=Object.keys(kinds).sort(function(a,b){return kinds[b]-kinds[a];});
+  $("other-kinds").innerHTML=others?'<h3>'+esc(no(OTHER_ID)+" "+itemName(OTHER_ID))+', by kind</h3><table class="kinds">'+kl.map(function(k){return "<tr><td>"+esc(k)+'</td><td class="n">'+kinds[k]+"</td></tr>";}).join("")+'</table><p class="small">Kept on this device only. The WHO form counts all of these under item '+esc(no(OTHER_ID))+".</p>":"";
+  var ck=[], miss=function(fn){return day.filter(fn).length;}, line=function(k,what){ if(k) ck.push(k+" of "+n+" "+(k===1?"has":"have")+" no "+what+"."); };
+  if(!n) ck.push("Nothing recorded yet.");
+  line(miss(function(r){return r.sex===null||r.age===null;}),"sex or age"); line(miss(function(r){return r.event===null;}),"health event"); line(miss(function(r){return r.outcome===null;}),"outcome"); line(miss(function(r){return r.relation===null;}),"relation to the event");
+  if(n&&others/n>=0.3){ var topk=kl.filter(function(k){return k!=="Kind not recorded"&&k!=="Something else";})[0]; ck.push(Math.round(100*others/n)+"% are coded "+itemName(OTHER_ID)+"."+(topk?" Most common kind: "+topk+" ("+kinds[topk]+").":"")+(PROFILES[profileId].extras?" The coordination cell can name items 19 to 22 for this response.":"")); }
+  if(n&&PROFILES[profileId].mm&&(!TEAM.org||!TEAM.team||!TEAM.type||!TEAM.date)) ck.push("Organisation, team, type or date is blank, so the MDS Maker layout files will have empty headers.");
+  var ng=load("mds.gaps",[]).length; if(ng) ck.push(ng+" definition gap"+(ng===1?"":"s")+" logged. See below.");
+  if(n&&ck.length===0) ck.push("No problems found in "+n+" consultation"+(n===1?"":"s")+".");
+  $("checks").innerHTML=ck.map(function(c){return "<li>"+esc(c)+"</li>";}).join("");
+  $("print-head").textContent="Stet daily tally. "+[TEAM.org,TEAM.team,TEAM.date].filter(Boolean).join(", ")+(n?" · "+n+" consultations":"")+" · Prototype, synthetic cases only.";
   $("copy-report").onclick=function(){copy(buildExport($("export-kind").value,day),$("report-msg"));};
 }
 $("load-day").addEventListener("click",function(){
