@@ -237,7 +237,7 @@ button.lnk{min-height:0;border:0;background:none;padding:0 2px;font:inherit;font
 body.nokeys #fields .tl kbd,body.nokeys .keys .kfull{display:none!important}
 body:not(.nokeys) #keys-on{display:none}
 
-.tg.tq{grid-template-columns:minmax(0,1.6fr) minmax(0,1.6fr) minmax(0,1fr)}
+.tl.neither{border-style:dashed;font-size:13px}
 .tl.q{flex-direction:column;gap:2px;border-style:dashed;border-color:var(--hi)}
 .tl.q small{font:700 10.5px/1.05 var(--body);text-transform:uppercase;letter-spacing:.05em;color:var(--sugg)}
 .tl.q span{font-size:13.5px}
@@ -321,6 +321,12 @@ body:not([data-view="capture"]) .brow select{display:none}
       <button id="clear-day">Clear the day</button>
     </div>
     <div class="toast" id="report-msg" role="status"></div>
+  </div>
+  <div class="panel" style="margin-top:14px">
+    <h2>Definition gaps</h2>
+    <p class="small" id="gap-sum"></p>
+    <div class="row"><button id="copy-gaps">Copy as CSV</button><button id="clear-gaps">Clear</button></div>
+    <div class="toast" id="gap-msg" role="status"></div>
   </div>
 </section>
 
@@ -628,7 +634,7 @@ function applySuggestion(sg){
 }
 var FIELD_LIST={sex:SEX,event:EVENTS,outcome:OUTCOMES,relation:RELATION,procs:PROCS,prot:PROT};
 var FIELD_NAME={sex:"Sex",age:"Age",event:"Event",outcome:"Outcome",relation:"Relation",procs:"Procedure",prot:"Protection"};
-var lastSugg={}, lastAlts=[], lastWhy={}, lastFlag="", lastAsk=false;
+var lastSugg={}, lastAlts=[], lastWhy={}, lastFlag="", lastQ=null, lastRule=null, lastCmp={};
 /* Which options to put in front of the clinician. Works offline: what the note suggests, close alternatives,
    what usually follows this kind of event, what this team has ticked most today, then common defaults. */
 function recsFor(f,freq){
@@ -674,7 +680,27 @@ function findMatches(q){
   if(!isNum) AGE.forEach(function(a){ if(a.indexOf(q)>=0) add("age",a); });
   return out.slice(0,8);
 }
-function asking(){ return lastAsk&&rec.event.s===0; }
+function asking(){ return !!lastQ&&rec.event.s===0; }
+/* The deciding question, the idea from Triage's "next discriminating question": where the form's
+   definitions turn on one fact the note does not give, ask for that fact instead of guessing. */
+function askFor(sg){
+  if(sg.flag===FLAG_SEV||sg.flag===FLAG_BOTH) return {kind:"treatment",head:"How was it treated?",answers:[{id:7,label:"Sedation or block"},{id:8,label:PROFILES[profileId].laIsMinor?"First aid, dressing, local":"First aid, dressing"}]};
+  if(sg.flag===FLAG_POLY&&sg.event!==null) return {kind:"main injury",head:"Which injury drives care?",answers:[sg.event].concat(sg.alts||[]).slice(0,3).map(function(id){return {id:id,label:"Main injury"};})};
+  return null;
+}
+/* Words that turn a phrase round, from Triage's qualifier: "no fracture", "denies fever". English only. */
+function negated(note,quote){
+  var N=String(note||"").toLowerCase(), q=String(quote||"").toLowerCase().replace(/\s+/g," ").trim(); if(!q) return false;
+  var flat=N.replace(/\s+/g," "), at=flat.indexOf(q); if(at<0) return false;
+  var left=flat.slice(0,at), cut=Math.max(left.lastIndexOf(","),left.lastIndexOf("."),left.lastIndexOf(";"),left.lastIndexOf(" but "),left.lastIndexOf(" and "));
+  var win=left.slice(Math.max(cut+1,left.length-22));
+  return /\b(no|not|never|denies|denied|without|nil)\b/.test(win)||/^\s*\?\s*no\b/.test(flat.slice(at+q.length,at+q.length+8));
+}
+function cmpFor(f){
+  var keys=f==="who"?["sex","age"]:[f], diff=[], same=0;
+  keys.forEach(function(k){ var c=lastCmp[k]; if(c===undefined) return; if(c==="agree") same++; else diff.push(k==="age"?String(c):no(c)+" "+shortName(c)); });
+  return diff.length?{differ:diff.join(", ")}:(same?{agree:true}:null);
+}
 function renderFields(){
   var q=$("find").value.trim(), h="";
   if(q){
@@ -686,12 +712,15 @@ function renderFields(){
     var freq=tally(load("mds.day",[])).count;
     var head=function(f,name){ var st=lineState(f), why=st===1?whyFor(f):"";
       var fl=f==="event"?lastFlag.replace(/^<div class="flag">|<\/div>$/g,""):"";
-      if(f==="event"&&asking()) fl="<b>How was it treated?</b> If neither fits, the definitions do not cover it: choose from All.";
-      return '<div class="frow s'+(st<0?"n":st)+'" data-f="'+f+'"><div class="rh"><span class="rl">'+name+"</span>"+(f==="event"?'<span class="why warn" id="flag" title="'+esc(fl.replace(/<[^>]+>/g,""))+'">'+fl+"</span>":"")+(fl?"":'<span class="why">'+(why?"read: "+esc(why):"")+"</span>")+'<span class="rs">'+(st===2?"✓ ok":st===1?"check":st===0?"pick":"")+"</span></div>"; };
+      if(f==="event"&&asking()) fl="<b>"+esc(lastQ.head)+"</b>";
+      var cm=st===1&&f!=="also"?cmpFor(f):null;
+      if(cm&&cm.differ&&!fl) fl="<b>The rules read it as "+esc(cm.differ)+".</b> Two suggesters disagree: you decide.";
+      if(cm&&cm.agree&&why) why+=" · rules agree";
+      return '<div class="frow s'+(st<0?"n":st)+'" data-f="'+f+'"><div class="rh"><span class="rl">'+name+"</span>"+(f==="event"?'<span class="why warn" id="flag" title="'+esc(fl.replace(/<[^>]+>/g,""))+'">'+fl+"</span>":"")+(fl&&f!=="event"?'<span class="why warn">'+fl+"</span>":"")+(fl?"":'<span class="why">'+(why?"read: "+esc(why):"")+"</span>")+'<span class="rs">'+(st===2?"✓ ok":st===1?"check":st===0?"pick":"")+"</span></div>"; };
     var some=function(f,cls){ return '<div class="tg '+cls+'">'+top3(f,freq).map(function(id){return tile(f,id,shortName(id),no(id),rec[f].v===id?rec[f].s:0);}).join("")+'<button type="button" class="tl more" data-more="'+f+'">All '+items(FIELD_LIST[f]).length+"</button></div>"; };
     h+=head("who","Who")+'<div class="tg t3">'+items(SEX).map(function(o){return tile("sex",o.id,shortName(o.id),no(o.id),rec.sex.v===o.id?rec.sex.s:0);}).join("")+'</div><div class="tg t5">'+AGE.map(function(a){return tile("age",a,a,"",rec.age.v===a?rec.age.s:0);}).join("")+"</div></div>";
-    var qt=function(id,lab){ return '<button type="button" class="chip tl q" data-f="event" data-v="'+id+'" aria-pressed="false"><small>'+lab+'</small><span><i>'+esc(no(id))+"</i> "+esc(shortName(id))+"</span></button>"; };
-    h+=head("event","Event")+(asking()?'<div class="tg tq">'+qt(7,"Sedation or block")+qt(8,PROFILES[profileId].laIsMinor?"First aid, dressing, local":"First aid, dressing")+'<button type="button" class="tl more" data-more="event">All '+items(EVENTS).length+"</button></div>":some("event","t4"))+"</div>";
+    var qt=function(a){ return '<button type="button" class="chip tl q" data-f="event" data-v="'+a.id+'" aria-pressed="false"><small>'+esc(a.label)+'</small><span><i>'+esc(no(a.id))+"</i> "+esc(shortName(a.id))+"</span></button>"; };
+    h+=head("event","Event")+(asking()?'<div class="tg tq" style="grid-template-columns:'+lastQ.answers.map(function(){return "minmax(0,1.5fr)";}).join(" ")+' minmax(0,1fr) minmax(0,.85fr)">'+lastQ.answers.map(qt).join("")+'<button type="button" class="tl neither" data-neither="1">Neither</button><button type="button" class="tl more" data-more="event">All '+items(EVENTS).length+"</button></div>":some("event","t4"))+"</div>";
     h+=head("outcome","Outcome")+some("outcome","t4")+"</div>";
     h+=head("relation","Relation")+'<div class="tg t3">'+items(RELATION).map(function(o){return tile("relation",o.id,shortName(o.id),no(o.id),rec.relation.v===o.id?rec.relation.s:0);}).join("")+"</div></div>";
     var also=""; ["procs","prot"].forEach(function(k){Object.keys(rec[k]).map(Number).forEach(function(id){also+=tile(k,id,shortName(id),no(id),rec[k][id]);});});
@@ -791,8 +820,10 @@ $("nview").addEventListener("click",function(e){
 $("fields").addEventListener("click",function(e){ var rh=e.target.closest(".rh"); if(!rh||e.target.closest("button")) return; var f=rh.parentNode.getAttribute("data-f"); if(f) flash(document.querySelectorAll('#nview mark[data-f="'+f+'"]'),"on"); });
 function runRules(){ fitNote();
   var sg=classify($("note").value);
+  lastQ=askFor(sg); if(lastQ) sg.event=null;
+  lastRule={sex:sg.sex,age:sg.age,event:sg.event,outcome:sg.outcome,relation:sg.relation,procs:sg.procs.slice(),prot:sg.prot.slice(),why:sg.why||{}}; lastCmp={};
   lastWhy=sg.why||{}; applySuggestion(sg); lastEvidence=sg.evidence; lastYears=sg.years;
-  lastFlag=sg.flag?'<div class="flag">'+sg.flag+"</div>":""; lastAsk=sg.flag===FLAG_SEV;
+  lastFlag=sg.flag?'<div class="flag">'+sg.flag+"</div>":"";
   renderEcho(); renderFields();
   var found=sg.sex!==null||sg.age!==null||sg.event!==null||sg.outcome!==null||sg.relation!==null||sg.flag;
   if($("note").value.trim()&&!found&&!$("btn-ai").hidden) $("ai-msg").textContent="The offline rules found nothing here. Try Ask Claude.";
@@ -809,6 +840,10 @@ $("fields").addEventListener("click",function(e){
     $("find").value=""; renderFields(); return;
   }
   var m=e.target.closest(".more"); if(m){ openSheet(m.getAttribute("data-more")); return; }
+  if(e.target.closest(".neither")&&lastQ){
+    var gaps=load("mds.gaps",[]); gaps.push({t:Date.now(),form:profileId,question:lastQ.head,offered:lastQ.answers.map(function(a){return no(a.id)+" "+itemName(a.id);}).join(" / "),note:$("note").value.slice(0,400)}); save("mds.gaps",gaps);
+    lastQ=null; lastFlag='<div class="flag"><b>Logged as a gap in the definitions.</b> Pick the closest box.</div>'; renderFields(); return;
+  }
   var b=e.target.closest(".chip"); if(!b) return;
   f=b.getAttribute("data-f"); raw=b.getAttribute("data-v"); v=f==="age"?raw:parseInt(raw,10);
   if(f==="procs"||f==="prot"){ if(rec[f][v]===2) delete rec[f][v]; else rec[f][v]=2; }
@@ -821,7 +856,7 @@ $("confirm-all").addEventListener("click",function(){
   ["procs","prot"].forEach(function(f){ Object.keys(rec[f]).forEach(function(id){rec[f][id]=2;}); });
   renderFields();
 });
-function resetCapture(){ rec=blank(); lastEvidence=[]; lastYears=null; lastSugg={}; lastAlts=[]; lastWhy={}; lastAsk=false; $("find").value=""; $("note").value=""; fitNote(); lastFlag=""; renderEcho(); renderFields(); }
+function resetCapture(){ rec=blank(); lastEvidence=[]; lastYears=null; lastSugg={}; lastAlts=[]; lastWhy={}; lastQ=null; lastRule=null; lastCmp={}; $("find").value=""; $("note").value=""; fitNote(); lastFlag=""; renderEcho(); renderFields(); }
 $("clear-rec").addEventListener("click",function(){resetCapture();$("toast").textContent="";});
 $("save-rec").addEventListener("click",function(){
   var row={t:Date.now()}, n=0;
@@ -850,6 +885,8 @@ $("theme").addEventListener("click",function(){ var n=effTheme()==="dark"?"light
 function setKeys(on){ document.body.classList.toggle("nokeys",!on); save("mds.keys",on?"on":"off"); }
 $("keys-off").addEventListener("click",function(){setKeys(false);});
 $("keys-on").addEventListener("click",function(){setKeys(true);});
+$("copy-gaps").addEventListener("click",function(){ var g=load("mds.gaps",[]); copy("time,form,question,offered,note\n"+g.map(function(x){return [new Date(x.t).toISOString(),x.form,x.question,x.offered,x.note].map(csvCell).join(",");}).join("\n"),$("gap-msg")); });
+$("clear-gaps").addEventListener("click",function(){ save("mds.gaps",[]); renderGaps(); $("gap-msg").textContent="Cleared."; });
 var ex=$("examples");
 ex.innerHTML='<option value="">Examples</option>'+EXAMPLES.map(function(e,i){return '<option value="'+i+'">'+esc(e.label)+"</option>";}).join("");
 ex.addEventListener("change",function(){ if(ex.value==="") return; rec=blank(); $("note").value=EXAMPLES[+ex.value].text; ex.value=""; $("toast").textContent=""; $("ai-msg").textContent=""; runRules(); });
@@ -868,10 +905,10 @@ function ids(list){return list.map(function(o){return o.id;});}
 /* Quote gate, the rule from Rind: a suggestion from the model is shown only if the words it quotes are in the note. */
 function gateAI(r,note){
   var norm=function(x){return String(x||"").toLowerCase().replace(/\s+/g," ").trim();}, N=norm(note), q=(r&&r.quotes)||{}, why={}, dropped=[], kept=0;
-  var backed=function(k){ var v=norm(q[k]); return v.length>=1&&N.indexOf(v)>=0; };
+  var backed=function(k){ var v=norm(q[k]); if(!(v.length>=1&&N.indexOf(v)>=0)) return false; if(negated(note,q[k])){ neg.push(k); return false; } return true; }, neg=[];
   var sg={sex:clean(r.sex,ids(SEX)),age:clean(r.age,AGE),event:clean(r.event,ids(items(EVENTS))),outcome:clean(r.outcome,ids(OUTCOMES)),relation:clean(r.relation,ids(RELATION)),
     procs:(r.procs||[]).filter(function(x){return ids(PROCS).indexOf(x)>=0;}),prot:(r.prot||[]).filter(function(x){return ids(PROT).indexOf(x)>=0;})};
-  CORE.forEach(function(k){ if(sg[k]===null) return; if(backed(k)){ why[k]=[String(q[k]).trim()]; kept++; } else { dropped.push(FIELD_NAME[k].toLowerCase()); sg[k]=null; } });
+  CORE.forEach(function(k){ if(sg[k]===null) return; if(backed(k)){ why[k]=[String(q[k]).trim()]; kept++; } else { dropped.push(FIELD_NAME[k].toLowerCase()+(neg.indexOf(k)>=0?" (the note says not)":"")); sg[k]=null; } });
   if(sg.procs.length||sg.prot.length){ if(backed("also")){ why.procs=[String(q.also).trim()]; kept++; } else { dropped.push("procedures and concerns"); sg.procs=[]; sg.prot=[]; } }
   return {sg:sg,why:why,dropped:dropped,kept:kept};
 }
@@ -887,8 +924,13 @@ if(window.claude&&typeof window.claude.use==="function"){
         if(typeof r==="string"){ try{r=JSON.parse(r);}catch(e){r=null;} }
         if(!r||typeof r!=="object") throw new Error("bad answer");
         var g=gateAI(r,note);
-        applySuggestion(g.sg);
-        lastEvidence=[]; lastWhy=g.why; lastAsk=false; lastSugg={event:g.sg.event,outcome:g.sg.outcome};
+        /* Claude is a second suggester, not a replacement: where it gives nothing, the rules' suggestion stays; where both speak, say whether they agree. */
+        var R=lastRule||{why:{}}, merged={procs:g.sg.procs,prot:g.sg.prot}, cmp={}, kept=0;
+        CORE.forEach(function(k){ var a=g.sg[k], rv=(R[k]===undefined?null:R[k]); if(a!==null&&rv!==null) cmp[k]=(a===rv?"agree":rv); merged[k]=a!==null?a:rv; if(a===null&&rv!==null){ kept++; if(R.why[k]) g.why[k]=R.why[k]; } });
+        if(!g.sg.procs.length&&!g.sg.prot.length&&R.procs){ merged.procs=R.procs; merged.prot=R.prot; if(R.why.procs) g.why.procs=R.why.procs; if(R.why.prot) g.why.prot=R.why.prot; }
+        if(g.sg.event!==null) lastQ=null;
+        applySuggestion(merged); lastCmp=cmp; if(typeof cmp.event==="number") lastAlts=[cmp.event];
+        lastEvidence=[]; lastWhy=g.why; lastSugg={event:merged.event,outcome:merged.outcome};
         lastFlag=r.ambiguity?'<div class="flag"><b>Claude is unsure.</b> '+esc(r.ambiguity)+"</div>":"";
         renderEcho(); renderFields(); $("ai-msg").textContent=(g.kept?"Claude suggested "+g.kept+". ":"Claude suggested nothing it could back with the note's own words. ")+(g.dropped.length?"Dropped, no matching words in the note: "+g.dropped.join(", ")+". ":"")+"Nothing counts until you confirm it.";
       }).catch(function(err){
@@ -917,7 +959,9 @@ if(window.claude&&typeof window.claude.use==="function"){
 }
 
 /* ---------- daily report ---------- */
+function renderGaps(){ var g=load("mds.gaps",[]); $("gap-sum").textContent=g.length?g.length+" logged. Each is a case where the deciding question was asked and neither answer fitted.":"None logged. One is logged each time someone taps Neither on a deciding question."; }
 function renderReport(){
+  renderGaps();
   var day=load("mds.day",[]), n=day.length;
   var pct=function(fn){return n?Math.round(100*day.filter(fn).length/n):0;};
   var tiles=[["Consultations",n,false],["Sex and age recorded",pct(function(r){return r.sex!==null&&r.age!==null;})+"%"],["Health event recorded",pct(function(r){return r.event!==null;})+"%"],["Outcome recorded",pct(function(r){return r.outcome!==null;})+"%"],["Relation recorded",pct(function(r){return r.relation!==null;})+"%"]];
