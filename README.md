@@ -15,6 +15,9 @@ Open the page once with a connection. After that it works with no signal, and on
 - **It logs what the definitions do not cover.** If no answer fits, tap Neither. The case is saved as a definition gap and listed on the Report tab.
 - **It shows its reading.** The words it read are underlined in the note. Tap a word to see which row it fed.
 - **A second suggester has to quote the note.** Inside the Claude app there is an optional Ask Claude button. A suggestion from the model is shown only if the words it quotes are in the note and are not negated ("no fever"). Where the model and the rules both speak, the row says whether they agree.
+- **Two ways to work.** *Shown first*: Stet suggests and you confirm. *Check after*: you pick with nothing shown, and Stet speaks only where it reads the note differently. Advice shown first is known to pull people toward it; check-after is there so that can be measured and avoided. Set it under Report, Form setup.
+- **Relation tiles carry the WHO wording** ("in the event itself", "afterwards, e.g. clean-up", "flare-up or lost medicines"), because relation to the event is one of the least-completed fields in real reports.
+- **One setup for the whole team.** Copy the form version, items 19 to 22 and the mode as a short code; paste it on the other phones.
 - **"Other" is broken down.** Recent responses report most patients under "Other diagnosis". Stet keeps what kind (hypertension, diabetes, joint pain and so on) on the device's own tally, and tells you when one kind is common enough for the coordination cell to name items 19 to 22 after it. The WHO form still counts it as Other.
 - **Before you send.** The Report tab lists what is missing (no outcome, no relation, blank team details) before the day goes out.
 - **Paper and pooling.** Print the day's tally. Save the day as a file and add it on another phone, so a team can collate with no internet and no email.

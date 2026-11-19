@@ -256,6 +256,13 @@ table.kinds{border-collapse:collapse;margin:4px 0;font-size:14px}table.kinds td{
   #v-report{display:block!important} .panel{border:0;padding:0} .tscroll{overflow:visible;max-height:none} .bar{display:none} .printonly{display:block;font-weight:700;margin:0 0 8px}
   #tally{font-size:11px} #tally td,#tally th{padding:1px 6px}
 }
+
+.tl.cap{flex-direction:column;gap:2px}
+.tl.cap small{font:700 10px/1.05 var(--body);text-transform:uppercase;letter-spacing:.03em;color:var(--muted);overflow-wrap:anywhere}
+.tl.cap.sugg small{color:var(--sugg)}
+.tl.cap span{font-size:13.5px}
+#setup-in{flex:1 1 180px;min-width:0}
+body.checkmode #confirm-all{display:none}
 body[data-view="capture"] footer{display:none}
 body:not([data-view="capture"]) .brow select{display:none}
 @media (min-width:821px){body[data-view="capture"] .wrap{max-width:980px}.tl,.chip.tl{min-height:44px;font-size:15px}}
@@ -313,6 +320,9 @@ body:not([data-view="capture"]) .brow select{display:none}
     <h2>Form setup</h2>
     <div class="row"><label class="small" for="profile">Form version</label><select id="profile"></select></div>
     <p class="small" id="profile-src"></p>
+    <div class="row"><label class="small" for="mode">Suggestions</label><select id="mode"><option value="suggest">Shown first: Stet suggests, you confirm</option><option value="check">Check after: you pick, Stet speaks only if the note reads differently</option></select></div>
+    <div class="row"><button id="copy-setup">Copy this setup as a code</button><input type="text" id="setup-in" placeholder="Paste a setup code" aria-label="Setup code" autocomplete="off" spellcheck="false"><button id="apply-setup">Apply</button></div>
+    <p class="small" id="setup-msg" role="status">One person sets the form version, items 19 to 22 and the mode, then sends the code so every phone matches. It holds no patient data.</p>
     <div id="extras">
       <h3>Items 19 to 22: set by the coordination cell for this response</h3>
       <div class="row" id="extras-row"></div>
@@ -414,8 +424,8 @@ function shortName(id){return SHORT[id]||itemName(id);}
 /* Most patients in recent responses fall into "Other diagnosis". Keep what kind, so the day's
    tally can show it and the coordination cell can see what to name items 19 to 22 after. */
 var OTHER_ID=25;
-var OTHER_KINDS=[["Hypertension",/hypertens\w*|high blood pressure|\bhtn\b/i],["Diabetes",/diabet\w*|\bt[12]dm\b|insulin|metformin|high (?:blood )?sugar/i],["Heart disease",/angina|heart failure|\bihd\b|palpitation\w*/i],
-  ["Chronic lung disease",/\bcopd\b|chronic bronchitis|inhaler/i],["Muscle or joint pain",/back pain|joint pain|arthritis|knee pain|neck pain|musculoskeletal|\bmsk\b/i],["Epilepsy",/epilep\w*/i],
+var OTHER_KINDS=[["Hypertension",/hypertens\w*|high blood pressure|\bhtn\b/i],["Diabetes",/diabet\w*|\bt[12]dm\b|insulin|metformin|high (?:blood )?sugar/i],["Cardiovascular disease",/angina|heart failure|\bihd\b|palpitation\w*/i],
+  ["Asthma or COPD",/\bcopd\b|chronic bronchitis|inhaler|stable asthma/i],["Muscle or joint pain",/back pain|joint pain|arthritis|knee pain|neck pain|musculoskeletal|\bmsk\b/i],["Epilepsy",/epilep\w*/i],
   ["Stomach or gut",/gastritis|dyspepsia|heartburn|reflux|constipat\w*|epigastric/i],["Eye or ear",/conjunctivitis|red eye|ear ?ache|otitis/i],["Pregnancy check",/antenatal|\banc\b/i],
   ["Urinary",/\buti\b|dysuria|urinary/i],["Headache",/headache|migraine/i],["Medicines ran out",/refill|ran out of|lost (?:his |her |their )?(?:tablets|medic\w*)/i],["Something else",null]];
 /* offline recommendation helpers */
@@ -430,6 +440,7 @@ var PROFILES={
   src:"Working group report, daily reporting form v0.94. Older numbering, no response-specific items.",no:{},names:{}}
 };
 var profileId="who2019";
+var MODE="suggest"; /* "suggest": Stet proposes, you confirm. "check": you pick first, Stet speaks only where it reads the note differently. */
 var EXTRA_LABELS=["","","",""]; /* items 19 to 22 on the WHO form are left for the coordination cell to define per response; internal codes 101 to 104 */
 function no(id){var n=PROFILES[profileId].no[id];return n!==undefined?n:id;}
 function itemName(id){
@@ -733,6 +744,8 @@ function cmpFor(f){
 function evLabel(id){ return id===OTHER_ID&&rec.event.v===OTHER_ID&&rec.sub?"Other: "+rec.sub.toLowerCase():shortName(id); }
 function renderFields(){
   if(rec.event.v!==OTHER_ID) rec.sub=null;
+  if(MODE==="check") renderEcho();
+  document.body.classList.toggle("checkmode",MODE==="check");
   var q=$("find").value.trim(), h="";
   if(q){
     var m=findMatches(q);
@@ -744,16 +757,24 @@ function renderFields(){
     var head=function(f,name){ var st=lineState(f), why=st===1?whyFor(f):"";
       var fl=f==="event"?lastFlag.replace(/^<div class="flag">|<\/div>$/g,""):"";
       if(f==="event"&&asking()) fl="<b>"+esc(lastQ.head)+"</b>";
+      if(MODE==="check"&&f!=="also"&&lastRule){
+        var ks=f==="who"?["sex","age"]:[f], df=[], sm=0;
+        ks.forEach(function(k){ if(rec[k].s!==2) return; var rv=lastRule[k]; if(rv===null||rv===undefined) return; if(rv===rec[k].v) sm++; else df.push(k==="age"?String(rv):no(rv)+" "+shortName(rv)); });
+        if(df.length) fl="<b>The note reads as "+esc(df.join(", "))+".</b> Keep yours or change it.";
+        else if(sm&&st===2) why="the note agrees";
+      }
       var cm=st===1&&f!=="also"?cmpFor(f):null;
       if(cm&&cm.differ&&!fl) fl="<b>The rules read it as "+esc(cm.differ)+".</b> Two suggesters disagree: you decide.";
       if(cm&&cm.agree&&why) why+=" · rules agree";
-      return '<div class="frow s'+(st<0?"n":st)+'" data-f="'+f+'"><div class="rh"><span class="rl">'+name+"</span>"+(f==="event"?'<span class="why warn" id="flag" title="'+esc(fl.replace(/<[^>]+>/g,""))+'">'+fl+"</span>":"")+(fl&&f!=="event"?'<span class="why warn">'+fl+"</span>":"")+(fl?"":'<span class="why">'+(why?"read: "+esc(why):"")+"</span>")+'<span class="rs">'+(st===2?"✓ ok":st===1?"check":st===0?"pick":"")+"</span></div>"; };
+      return '<div class="frow s'+(st<0?"n":st)+'" data-f="'+f+'"><div class="rh"><span class="rl">'+name+"</span>"+(f==="event"?'<span class="why warn" id="flag" title="'+esc(fl.replace(/<[^>]+>/g,""))+'">'+fl+"</span>":"")+(fl&&f!=="event"?'<span class="why warn">'+fl+"</span>":"")+(fl?"":'<span class="why">'+(why?(why==="the note agrees"?why:"read: "+esc(why)):"")+"</span>")+'<span class="rs">'+(st===2?"✓ ok":st===1?"check":st===0?"pick":"")+"</span></div>"; };
     var some=function(f,cls){ return '<div class="tg '+cls+'">'+top3(f,freq).map(function(id){return tile(f,id,f==="event"?evLabel(id):shortName(id),no(id),rec[f].v===id?rec[f].s:0);}).join("")+'<button type="button" class="tl more" data-more="'+f+'">All '+items(FIELD_LIST[f]).length+"</button></div>"; };
     h+=head("who","Who")+'<div class="tg t3">'+items(SEX).map(function(o){return tile("sex",o.id,shortName(o.id),no(o.id),rec.sex.v===o.id?rec.sex.s:0);}).join("")+'</div><div class="tg t5">'+AGE.map(function(a){return tile("age",a,a,"",rec.age.v===a?rec.age.s:0);}).join("")+"</div></div>";
     var qt=function(a){ return '<button type="button" class="chip tl q" data-f="event" data-v="'+a.id+'" aria-pressed="false"><small>'+esc(a.label)+'</small><span><i>'+esc(no(a.id))+"</i> "+esc(shortName(a.id))+"</span></button>"; };
     h+=head("event","Event")+(asking()?'<div class="tg tq" style="grid-template-columns:'+lastQ.answers.map(function(){return "minmax(0,1.5fr)";}).join(" ")+' minmax(0,1fr) minmax(0,.85fr)">'+lastQ.answers.map(qt).join("")+'<button type="button" class="tl neither" data-neither="1">Neither</button><button type="button" class="tl more" data-more="event">All '+items(EVENTS).length+"</button></div>":some("event","t4"))+"</div>";
     h+=head("outcome","Outcome")+some("outcome","t4")+"</div>";
-    h+=head("relation","Relation")+'<div class="tg t3">'+items(RELATION).map(function(o){return tile("relation",o.id,shortName(o.id),no(o.id),rec.relation.v===o.id?rec.relation.s:0);}).join("")+"</div></div>";
+    var inj=(rec.event.v>=4&&rec.event.v<=8)||!!lastQ, oth=rec.event.v===OTHER_ID, cap=inj?["In the event itself","Afterwards, e.g. clean-up","Not connected"]:oth?["Caused by the event","Flare-up or lost medicines","Stable, no flare-up"]:["Caused by the event","From conditions after it","Not connected"];
+    h+=head("relation","Relation")+'<div class="tg t3">'+items(RELATION).map(function(o,ix){ var st2=rec.relation.v===o.id?rec.relation.s:0;
+      return rec.relation.s===2?tile("relation",o.id,shortName(o.id),no(o.id),st2):'<button type="button" class="chip tl cap'+(st2===1?" sugg":"")+'" data-f="relation" data-v="'+o.id+'" aria-pressed="false"><small>'+esc(cap[ix]||"")+'</small><span><i>'+esc(no(o.id))+"</i> "+esc(shortName(o.id))+"</span></button>"; }).join("")+"</div></div>";
     var also=""; ["procs","prot"].forEach(function(k){Object.keys(rec[k]).map(Number).forEach(function(id){also+=tile(k,id,shortName(id),no(id),rec[k][id]);});});
     h+=head("also","Also")+'<div class="tg t3">'+(also||'<span class="none">None recorded</span>')+'<button type="button" class="tl more" data-more="also">Add</button></div></div>';
   }
@@ -838,10 +859,11 @@ $("sheet-list").addEventListener("click",function(e){
 var lastEvidence=[], lastYears=null;
 function renderEcho(){
   var t=$("note").value, ph=[];
-  Object.keys(lastWhy||{}).forEach(function(k){(lastWhy[k]||[]).forEach(function(p){ if(p&&p.length>1&&ph.indexOf(p)<0) ph.push(p); });});
+  var shown=function(k){ if(MODE!=="check") return true; return (k==="procs"||k==="prot")?false:rec[k]&&rec[k].s===2; };
+  Object.keys(lastWhy||{}).forEach(function(k){ if(!shown(k)) return; (lastWhy[k]||[]).forEach(function(p){ if(p&&p.length>1&&ph.indexOf(p)<0) ph.push(p); });});
   if(!t.trim()){ $("nview").innerHTML=""; return; }
   if(!ph.length){ $("nview").textContent=t; return; }
-  var owner={}; Object.keys(lastWhy||{}).forEach(function(k){ var row=(k==="sex"||k==="age")?"who":(k==="procs"||k==="prot")?"also":k; (lastWhy[k]||[]).forEach(function(p){ if(p) owner[String(p).toLowerCase()]=owner[String(p).toLowerCase()]||row; }); });
+  var owner={}; Object.keys(lastWhy||{}).forEach(function(k){ if(!shown(k)) return; var row=(k==="sex"||k==="age")?"who":(k==="procs"||k==="prot")?"also":k; (lastWhy[k]||[]).forEach(function(p){ if(p) owner[String(p).toLowerCase()]=owner[String(p).toLowerCase()]||row; }); });
   ph.sort(function(a,b){return b.length-a.length;});
   var re=new RegExp("("+ph.map(function(p){return p.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");}).join("|")+")","gi"), out="", last=0, m;
   while((m=re.exec(t))){ if(!m[0]){ re.lastIndex++; continue; } var ow=owner[m[0].toLowerCase()]||""; out+=esc(t.slice(last,m.index))+'<mark'+(ow?' data-f="'+ow+'" title="Read for '+ROWNAME[ow]+'"':"")+">"+esc(m[0])+"</mark>"; last=m.index+m[0].length; }
@@ -857,11 +879,13 @@ $("nview").addEventListener("click",function(e){
 $("fields").addEventListener("click",function(e){ var rh=e.target.closest(".rh"); if(!rh||e.target.closest("button")) return; var f=rh.parentNode.getAttribute("data-f"); if(f) flash(document.querySelectorAll('#nview mark[data-f="'+f+'"]'),"on"); });
 function runRules(){ fitNote();
   var sg=classify($("note").value);
-  lastQ=askFor(sg); if(lastQ) sg.event=null;
+  var chk=MODE==="check";
+  lastQ=chk?null:askFor(sg); if(lastQ) sg.event=null;
   lastRule={sex:sg.sex,age:sg.age,event:sg.event,outcome:sg.outcome,relation:sg.relation,procs:sg.procs.slice(),prot:sg.prot.slice(),why:sg.why||{}}; lastCmp={};
-  lastWhy=sg.why||{}; applySuggestion(sg); lastEvidence=sg.evidence; lastYears=sg.years;
-  lastFlag=sg.flag?'<div class="flag">'+sg.flag+"</div>":"";
-  renderEcho(); renderFields();
+  lastWhy=sg.why||{}; lastEvidence=sg.evidence; lastYears=sg.years;
+  if(chk){ CORE.forEach(function(f){ if(rec[f].s===1) rec[f]={v:null,s:0}; }); ["procs","prot"].forEach(function(k){ Object.keys(rec[k]).forEach(function(id){ if(rec[k][id]===1) delete rec[k][id]; }); }); lastSugg={}; lastAlts=[]; lastFlag=""; }
+  else { applySuggestion(sg); lastFlag=sg.flag?'<div class="flag">'+sg.flag+"</div>":""; }
+  renderEcho(); renderFields(); if(chk) return;
   var found=sg.sex!==null||sg.age!==null||sg.event!==null||sg.outcome!==null||sg.relation!==null||sg.flag;
   if($("note").value.trim()&&!found&&!$("btn-ai").hidden) $("ai-msg").textContent="The offline rules found nothing here. Try Ask Claude.";
 }
@@ -1171,6 +1195,21 @@ $("profile").innerHTML=Object.keys(PROFILES).map(function(k){return '<option val
 $("extras-row").innerHTML=EXTRA_LABELS.map(function(t,i){return '<input type="text" data-x="'+i+'" maxlength="40" placeholder="Item '+(19+i)+', not used" value="'+esc(t)+'" aria-label="Label for item '+(19+i)+'">';}).join("");
 $("profile").addEventListener("change",function(){profileId=$("profile").value;save("mds.profile",profileId);renderSetup();renderFields();renderReport();});
 $("extras-row").addEventListener("change",function(e){var i=e.target.getAttribute("data-x");if(i===null)return;EXTRA_LABELS[+i]=e.target.value.trim();save("mds.extras",EXTRA_LABELS);renderFields();renderReport();});
+MODE=load("mds.mode","suggest")==="check"?"check":"suggest"; $("mode").value=MODE;
+function setMode(m){ MODE=m==="check"?"check":"suggest"; save("mds.mode",MODE); $("mode").value=MODE; $("btn-ai").disabled=MODE==="check"; runRules(); }
+$("mode").addEventListener("change",function(){ setMode($("mode").value); });
+function setupCode(){ return "STET1."+btoa(unescape(encodeURIComponent(JSON.stringify({p:profileId,x:EXTRA_LABELS,m:MODE})))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
+function applySetup(code){
+  var m=/^\s*STET1\.([A-Za-z0-9_-]+)\s*$/.exec(code||""), d=null;
+  if(m){ try{ var b=m[1].replace(/-/g,"+").replace(/_/g,"/"); while(b.length%4) b+="="; d=JSON.parse(decodeURIComponent(escape(atob(b)))); }catch(e){ d=null; } }
+  if(!d||!PROFILES[d.p]||!Array.isArray(d.x)) return false;
+  profileId=d.p; save("mds.profile",profileId);
+  EXTRA_LABELS=[0,1,2,3].map(function(i){ return typeof d.x[i]==="string"?d.x[i].slice(0,40):""; }); save("mds.extras",EXTRA_LABELS);
+  [].forEach.call(document.querySelectorAll("#extras-row input"),function(el,i){ el.value=EXTRA_LABELS[i]; });
+  renderSetup(); setMode(d.m); renderReport(); return true;
+}
+$("copy-setup").addEventListener("click",function(){ copy(setupCode(),$("setup-msg")); });
+$("apply-setup").addEventListener("click",function(){ var okc=applySetup($("setup-in").value); $("setup-msg").textContent=okc?"Setup applied: "+PROFILES[profileId].label+", "+EXTRA_LABELS.filter(Boolean).length+" named item(s), suggestions "+(MODE==="check"?"checked after":"shown first")+".":"That is not a Stet setup code."; if(okc) $("setup-in").value=""; });
 var savedTeam=load("mds.team",null); if(savedTeam&&typeof savedTeam==="object") ["org","team","type","date"].forEach(function(k){ if(typeof savedTeam[k]==="string") TEAM[k]=savedTeam[k]; });
 $("t-org").value=TEAM.org; $("t-team").value=TEAM.team; $("t-type").value=TEAM.type; $("t-date").value=TEAM.date;
 $("team-row").addEventListener("change",function(){ TEAM={org:$("t-org").value.trim(),team:$("t-team").value.trim(),type:$("t-type").value,date:$("t-date").value}; save("mds.team",TEAM); });
