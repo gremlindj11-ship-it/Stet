@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stet</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0a0a09">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+/* Field kit. Layout idea: one patient, one screen, a strict grid. Every decision is a row of equal tiles with the likely answers already on it; one search box reaches every other box. Colour is kept for state: hi-vis orange = check this, green = confirmed. */
+:root{
+  --bg:#e6e5dd; --surface:#fbfaf6; --chip:#efeee6; --ink:#12120f; --muted:#55534a; --line:#bdbaad; --rule:#12120f;
+  --accent:#12120f; --accent-ink:#fbfaf6; --sugg:#c44700; --sugg-bg:#ffe2cb; --hi:#ff6a00; --hi-ink:#12120f; --ok:#0a7a3d; --ok-bg:#d8f1e2; --on-ok:#ffffff; --crit:#c21c1c;
+  --display:"Barlow Condensed","Arial Narrow","Roboto Condensed",Arial,sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0a0a09; --surface:#161614; --chip:#22221f; --ink:#f6f4ea; --muted:#b9b6a8; --line:#3c3c35; --rule:#f6f4ea;
+    --accent:#f6f4ea; --accent-ink:#0a0a09; --sugg:#ff9a45; --sugg-bg:#3a2108; --hi:#ff8a2a; --hi-ink:#12120f; --ok:#37c871; --ok-bg:#0f2f1f; --on-ok:#06210f; --crit:#ff7b72;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0a0a09; --surface:#161614; --chip:#22221f; --ink:#f6f4ea; --muted:#b9b6a8; --line:#3c3c35; --rule:#f6f4ea;
+  --accent:#f6f4ea; --accent-ink:#0a0a09; --sugg:#ff9a45; --sugg-bg:#3a2108; --hi:#ff8a2a; --hi-ink:#12120f; --ok:#37c871; --ok-bg:#0f2f1f; --on-ok:#06210f; --crit:#ff7b72;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:400 15px/1.45 var(--body)}
+.wrap{max-width:1120px;margin:0 auto;padding:16px}
+header{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;justify-content:space-between;margin-bottom:8px}
+h1{font:600 26px/1 var(--display);margin:0;letter-spacing:.01em}
+h1 span{color:var(--accent)}
+h2{font:600 18px/1.2 var(--display);margin:0 0 8px;text-wrap:balance}
+h3{font:600 12px/1.2 var(--body);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:14px 0 6px}
+nav{display:flex;gap:4px}
+nav a{padding:8px 14px;border-radius:6px;color:var(--ink);text-decoration:none;font-weight:500;border:1px solid transparent}
+nav a.on{background:var(--surface);border-color:var(--line)}
+nav a:focus-visible,button:focus-visible,textarea:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.banner{font-size:13px;color:var(--muted);border-left:3px solid var(--sugg);padding:2px 10px;margin:0 0 14px}
+.grid2{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:16px}
+@media (max-width:820px){.grid2{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:16px}
+textarea{width:100%;min-height:150px;resize:vertical;font:400 15px/1.45 var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:10px}
+input[type=text],input[type=date],select{font:400 15px var(--body);color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:9px 10px;max-width:100%}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+button{font:500 14px var(--body);border-radius:6px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:9px 14px;cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button:disabled{opacity:.5;cursor:default}
+.echo{margin-top:12px;padding:10px;border:1px dashed var(--line);border-radius:6px;white-space:pre-wrap;font-size:14px;color:var(--muted);min-height:44px}
+.echo mark{background:var(--sugg-bg);color:var(--sugg);padding:0 2px;border-radius:3px;font-weight:500}
+.flag{margin-top:10px;padding:10px 12px;border-radius:6px;background:var(--sugg-bg);color:var(--ink);border-left:3px solid var(--sugg);font-size:14px}
+.flag b{color:var(--sugg)}
+.flag ul{margin:6px 0;padding-left:18px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px 6px 6px;border:1px solid var(--line);border-radius:6px;background:var(--surface);font-size:13.5px;min-height:36px}
+.chip i{font:500 11px var(--mono);font-style:normal;min-width:22px;text-align:center;padding:2px 3px;border:1px solid var(--line);border-radius:3px;color:var(--muted)}
+.chip.sugg{border:1.5px dashed var(--sugg);background:var(--sugg-bg)}
+.chip.sugg i{border-color:var(--sugg);color:var(--sugg)}
+.chip.conf{border:1.5px solid var(--ok);background:var(--ok-bg);font-weight:500}
+.chip.conf i{background:var(--ok);border-color:var(--ok);color:var(--surface)}
+.tag{font:500 11px var(--mono);padding:1px 6px;border-radius:3px;margin-left:6px;text-transform:none;letter-spacing:0}
+.tag.s{color:var(--sugg);border:1px dashed var(--sugg)}
+.tag.c{color:var(--ok);border:1px solid var(--ok)}
+.tag.m{color:var(--crit);border:1px solid var(--crit)}
+.meter{display:flex;gap:4px;margin:6px 0 2px}
+.meter span{flex:1;height:8px;border-radius:2px;background:var(--line)}
+.meter span.s{background:var(--sugg)}
+.meter span.c{background:var(--ok)}
+.small{font-size:13px;color:var(--muted)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px}
+.tile b{display:block;font:600 28px/1.1 var(--display);font-variant-numeric:tabular-nums}
+.tile.low b{color:var(--crit)}
+.tscroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+td.no{font:500 12px var(--mono);color:var(--muted);width:36px}
+tr.sec td{font:600 12px var(--body);text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding-top:14px}
+.bar{display:inline-block;height:8px;background:var(--accent);border-radius:2px;vertical-align:middle;margin-left:8px}
+.vig{font-size:17px;line-height:1.5;padding:14px;border:1px solid var(--line);border-radius:6px;background:var(--bg);margin:10px 0}
+.choices{display:grid;gap:8px}
+.choices button{text-align:left;padding:12px;font-size:15px}
+.choices button small{display:block;color:var(--muted);font-weight:400;margin-top:2px}
+.toast{min-height:20px;font-size:13px;color:var(--ok);margin-top:8px}
+footer{margin-top:22px;font-size:12.5px;color:var(--muted);max-width:75ch}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:no-preference){.chip,button{transition:background .12s,border-color .12s}}
+/* ---------- field kit ---------- */
+body{font:500 16px/1.4 var(--body)}
+h1{font:700 23px/1 var(--display);letter-spacing:.07em;text-transform:uppercase}
+h1 span{color:var(--sugg)}
+h2{font:700 20px/1.1 var(--display);text-transform:uppercase;letter-spacing:.04em}
+h3{font:700 12px/1.2 var(--body);letter-spacing:.08em}
+nav a{font:600 17px/1 var(--display);text-transform:uppercase;letter-spacing:.07em;border:0;border-bottom:3px solid transparent;border-radius:0;padding:9px 10px}
+nav a.on{background:transparent;border-color:var(--ink)}
+.panel{border:2px solid var(--rule);border-radius:8px;min-width:0}
+button{font:600 15px var(--body);border:2px solid var(--rule);border-radius:6px;min-height:44px}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+textarea,input[type=text],input[type=search],input[type=date],select{border:2px solid var(--rule);border-radius:6px;background:var(--surface);color:var(--ink);min-height:44px;font:500 16px var(--body);padding:8px 10px;max-width:100%}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.brow{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 6px}
+.brow .banner{border:0;padding:0;margin:0;font-size:12.5px;line-height:1.25}
+.brow select{min-height:30px;padding:2px 8px;font-size:13.5px;border-width:1.5px;flex:0 0 108px;width:108px}
+#v-capture textarea{display:block;width:100%;height:52px;min-height:52px;padding:5px 10px 0}
+.tools{display:flex;gap:6px;margin-top:6px}
+#find{flex:1;min-width:0}
+.tools button{flex:0 0 auto;padding:8px 9px;white-space:nowrap;font-size:14px}
+#find{text-overflow:ellipsis}
+#v-capture .toast{min-height:0;margin-top:6px;color:var(--ink);font-size:13.5px}
+#v-capture .toast:empty{display:none}
+#v-capture .meter{margin:0 0 6px;gap:3px}
+#v-capture .meter span{height:5px;border-radius:0}
+#v-capture .meter span.s{background:var(--hi)}
+.frow{margin-top:5px}
+.frow:first-child{margin-top:0}
+.rh{display:flex;align-items:baseline;gap:8px;height:15px;margin-bottom:3px}
+.rl{font:700 11.5px/1 var(--body);text-transform:uppercase;letter-spacing:.09em;flex:0 0 auto}
+.why{flex:1;min-width:0;font-size:11.5px;line-height:1;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rs{flex:0 0 auto;font:700 11.5px/1 var(--body);text-transform:uppercase;letter-spacing:.07em}
+.frow.s0 .rs{color:var(--crit)}
+.frow.s1 .rs{color:var(--sugg)}
+.frow.s2 .rs{color:var(--ok)}
+.tg{display:grid;gap:4px}
+.tg+.tg{margin-top:4px}
+.t2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.t3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.t4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.t5{grid-template-columns:repeat(5,minmax(0,1fr))}
+.tl,.chip.tl,.opt.tl{display:flex;align-items:center;justify-content:center;gap:5px;min-width:0;min-height:38px;padding:3px 6px;border:1.5px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);font:600 14px/1.15 var(--body);text-align:center;white-space:normal;cursor:pointer}
+.tl span{min-width:0;overflow-wrap:anywhere;text-wrap:balance}
+.tl i,.chip.tl i,.chip.tl.sugg i,.chip.tl.conf i,.opt.tl i{font:500 11px/1 var(--mono);font-style:normal;color:var(--muted);background:none;border:0;padding:0;min-width:0;flex:0 0 auto}
+.chip.tl.sugg,.opt.tl.sugg{border:2px solid var(--hi);background:var(--sugg-bg)}
+.chip.tl.sugg i,.opt.tl.sugg i{color:var(--sugg)}
+.chip.tl.conf,.opt.tl.conf{border:2px solid var(--ok);background:var(--ok);color:var(--on-ok)}
+.chip.tl.conf i,.opt.tl.conf i{color:var(--on-ok)}
+.tl.more{background:var(--chip);border-style:dashed;color:var(--ink);font-weight:600}
+.tl.hit{flex-direction:column;align-items:flex-start;justify-content:center;text-align:left;gap:2px;min-height:50px;padding:5px 9px}
+.tl.hit small{font:700 10.5px/1 var(--body);text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.none{font-size:13px;color:var(--muted);align-self:center;padding-left:2px}
+#flag:empty{display:none}
+.why.warn{color:var(--sugg)}
+.why b{font-weight:700}
+.t4 .tl,.t4 .chip.tl,.t4 .opt.tl{flex-direction:column;gap:1px;font-size:13px;line-height:1.1;padding:3px;min-height:44px}
+.frow[data-f=who] .tl{min-height:36px}
+.flag,#v-capture .flag{margin-top:4px;padding:3px 8px;font-size:12px;line-height:1.3;border-radius:4px;background:var(--sugg-bg);border-left:5px solid var(--hi)}
+.actions{display:flex;gap:6px;align-items:center;margin-top:8px}
+.actions button{min-height:46px;white-space:nowrap;padding:8px 12px}
+.actions .primary{flex:1;font:700 19px/1 var(--display);text-transform:uppercase;letter-spacing:.07em}
+#sheet{position:fixed;inset:0;background:var(--bg);z-index:5;display:flex;flex-direction:column}
+.sheet-in{flex:1;min-height:0;width:100%;max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:8px;padding:12px}
+.sheet-head{display:flex;align-items:center;gap:8px}
+.sheet-head h2{margin:0;font-size:24px;flex:1}
+#sheet-q{flex:0 0 auto}
+#sheet-list{flex:1;min-height:0;overflow-y:auto}
+.sg{font:700 11.5px/1 var(--body);text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin:7px 0 3px}
+.sg:first-child{margin-top:0}
+.opt.tl{min-height:40px}
+.t4 .opt.tl{min-height:42px}
+.ol{display:grid;gap:6px}
+.opt.rowo{display:flex;gap:10px;align-items:flex-start;text-align:left;padding:9px 12px;background:var(--surface);font:600 16px/1.2 var(--body);min-height:48px;border-width:1.5px;border-color:var(--line)}
+.opt.rowo i{font:500 12px/1.4 var(--mono);font-style:normal;color:var(--muted);flex:0 0 auto}
+.opt.rowo small{display:block;font:500 13px/1.3 var(--body);color:var(--muted);margin-top:3px}
+.opt.rowo.sugg{border:2px solid var(--hi);background:var(--sugg-bg)}
+.opt.rowo.conf{border:2px solid var(--ok);background:var(--ok);color:var(--on-ok)}
+.opt.rowo.conf i,.opt.rowo.conf small{color:var(--on-ok)}
+
+/* fill the screen: tiles grow first, then the note box */
+body[data-view="capture"] .wrap{height:100vh;height:100dvh;display:flex;flex-direction:column}
+#v-capture{flex:1;min-height:0;display:flex;flex-direction:column}
+#v-capture[hidden]{display:none}
+#v-capture .grid2{flex:1 1 auto;min-height:0;max-height:700px}
+#v-capture .panel{display:flex;flex-direction:column;min-height:0}
+#v-capture textarea{flex:1 1 52px;resize:none}
+#fields{flex:1;min-height:0;display:flex;flex-direction:column}
+.frow[data-f]{flex:1 1 auto;display:flex;flex-direction:column;min-height:0}
+.frow[data-f=who]{flex-grow:2}
+.frow[data-f] .tg{flex:1 1 auto;grid-auto-rows:minmax(0,1fr)}
+.frow[data-f] .rh{flex:0 0 auto}
+.opt.tl,.t4 .opt.tl{min-height:clamp(40px,6dvh,58px)}
+@media (max-width:820px){
+  #v-capture .grid2{display:flex;flex-direction:column;max-height:none}
+  #v-capture .grid2>.panel:first-child{flex:1 0 auto}
+  #v-capture .grid2>.panel:last-child{flex:1000 0 auto;max-height:640px}
+}
+@media (min-width:821px) and (min-height:760px){.tl,.chip.tl{font-size:17px!important}.tl i{font-size:12.5px!important}#v-capture textarea{font-size:17px}}
+@media (min-height:760px){.tl,.chip.tl,.opt.tl{font-size:15px}.t4 .tl,.t4 .chip.tl,.t4 .opt.tl{font-size:14px}.rl,.rs,.why{font-size:12.5px}}
+
+/* must hold with system fonts too: the web fonts may not load inside the Claude app */
+header{flex-wrap:nowrap;gap:8px}
+h1{white-space:nowrap;flex:0 1 auto;min-width:0;overflow:hidden}
+nav{display:flex;flex:0 0 auto}
+nav a{white-space:nowrap}
+.brow .banner{min-width:0;flex:1}
+.actions button{min-width:0;flex:0 1 auto;overflow:hidden;text-overflow:clip}
+.actions .primary{flex:1 1 0;font-size:clamp(14px,4.4vw,19px);letter-spacing:.04em;padding:8px 4px}
+.sheet-head h2{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.tl span{overflow-wrap:break-word;hyphens:auto;-webkit-hyphens:auto}
+@media (max-width:480px){
+  header h1{font-size:15px;letter-spacing:0}
+  header{gap:4px}
+  header nav a{font-size:13px;letter-spacing:.01em;padding:9px 5px}
+  .brow .banner{font-size:11px;line-height:1.2}
+  .sheet-head h2{font-size:19px}
+  .sheet-head button{padding:6px 10px}
+  .actions button{padding:8px 9px;font-size:14px}
+  .t4 .tl,.t4 .chip.tl,.t4 .opt.tl{font-size:12.5px!important;padding:2px 1px;letter-spacing:-.01em}
+  .t5 .tl{padding:3px 2px}
+}
+.keys{display:none}
+.tl kbd{display:none}
+@media (min-width:821px) and (hover:hover){#fields .tl{position:relative}#fields .tl kbd{display:block;position:absolute;top:4px;right:5px;font:500 11px/1.3 var(--mono);border:1px solid var(--line);border-radius:4px;padding:0 4px;color:var(--muted);background:var(--bg)}#fields .chip.tl.conf kbd{color:var(--ink)}.keys{display:block;margin:8px 0 0;font:500 12px/1.4 var(--body);color:var(--muted)}.keys kbd{font:500 11.5px var(--mono);border:1px solid var(--line);border-radius:4px;padding:0 4px;color:var(--ink)}}
+
+/* note: read-only view with the words the rules read marked; tap to edit */
+.nwrap{position:relative;display:flex;flex:1 1 52px;min-height:52px}
+#v-capture .nwrap textarea{flex:1 1 auto;height:auto;min-height:0;line-height:1.3}
+.nview{position:absolute;inset:0;overflow:auto;border:2px solid var(--rule);border-radius:6px;background:var(--surface);color:var(--ink);font:500 16px/1.3 var(--body);padding:5px 10px 0;white-space:pre-wrap;overflow-wrap:break-word;cursor:text}
+.nview:empty,.nwrap:focus-within .nview{display:none}
+.nview mark{background:var(--sugg-bg);color:inherit;box-shadow:inset 0 -2px 0 var(--hi);border-radius:2px}
+@media (min-width:821px) and (min-height:760px){.nview{font-size:17px}}
+button.lnk{min-height:0;border:0;background:none;padding:0 2px;font:inherit;font-weight:700;color:var(--ink);text-decoration:underline;cursor:pointer}
+#save-rec small{display:none}
+#save-rec.part{background:transparent;color:var(--ink);border-color:var(--rule);border-style:dashed;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:4px}
+#save-rec.part small{display:block;font:600 11px/1 var(--body);letter-spacing:.02em;color:var(--sugg);white-space:nowrap}
+#save-rec.part>span{font-size:.86em;line-height:1}
+@media (max-width:380px){#save-rec.part small{font-size:10px;letter-spacing:0}}
+#theme{flex:0 0 auto;min-height:30px;padding:2px 9px;font-size:13.5px;border-width:1.5px}
+body.nokeys #fields .tl kbd,body.nokeys .keys .kfull{display:none!important}
+body:not(.nokeys) #keys-on{display:none}
+
+.tg.tq{grid-template-columns:minmax(0,1.6fr) minmax(0,1.6fr) minmax(0,1fr)}
+.tl.q{flex-direction:column;gap:2px;border-style:dashed;border-color:var(--hi)}
+.tl.q small{font:700 10.5px/1.05 var(--body);text-transform:uppercase;letter-spacing:.05em;color:var(--sugg)}
+.tl.q span{font-size:13.5px}
+.nview mark[data-f]{cursor:pointer}
+.nview mark.on{background:var(--hi);color:#000}
+.frow.flash{outline:2px solid var(--hi);outline-offset:2px;border-radius:6px}
+.frow[data-f] .rh{cursor:pointer}
+body[data-view="capture"] footer{display:none}
+body:not([data-view="capture"]) .brow select{display:none}
+@media (min-width:821px){body[data-view="capture"] .wrap{max-width:980px}.tl,.chip.tl{min-height:44px;font-size:15px}}
+@media (max-width:820px){.grid2{gap:6px}.wrap{padding:8px 12px}.panel{padding:8px 10px}.tl,.chip.tl{min-height:36px}header{margin-bottom:2px}h1{font-size:20px}nav a{padding:9px 8px;font-size:16px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>St<span>et</span></h1>
+  <nav aria-label="Views">
+    <a href="#capture" data-tab="capture">Capture</a>
+    <a href="#report" data-tab="report">Report</a>
+    <a href="#study" data-tab="study">Study</a>
+  </nav>
+</header>
+<div class="brow"><p class="banner">Prototype. Synthetic cases only. Not a clinical tool.</p><select id="examples" aria-label="Load an example note"></select><button id="theme" type="button"></button></div>
+
+<section id="v-capture">
+  <div class="grid2">
+    <div class="panel">
+      <label class="sr" for="note">Consultation note</label>
+      <div class="nwrap"><textarea id="note" spellcheck="false" placeholder="Type or dictate the note. Boxes fill in as you write."></textarea><div class="nview" id="nview" aria-hidden="true"></div></div>
+      <div class="tools">
+        <label class="sr" for="find">Find</label>
+        <input type="search" id="find" placeholder="Find" autocomplete="off">
+        <button id="btn-mic" hidden>Dictate</button>
+        <button id="btn-ai" hidden>Ask Claude</button>
+      </div>
+      <div class="toast" id="ai-msg" role="status"></div>
+    </div>
+    <div class="panel">
+      <div class="meter" id="meter" aria-hidden="true"></div>
+      <div id="fields"></div>
+      <div class="toast" id="toast" role="status"></div>
+      <div class="actions">
+        <button id="clear-rec">Clear</button>
+        <button id="confirm-all">Confirm all</button>
+        <button id="save-rec" class="primary"><span>Save <span id="tag-title">patient 1</span></span><small id="save-miss"></small></button>
+      </div>
+      <p class="keys"><span class="kfull">Keyboard: press the letter shown on a box. &nbsp; <kbd>/</kbd> jumps to Find &nbsp; <kbd>N</kbd> to the note &nbsp; <kbd>Enter</kbd> confirms all &nbsp; <kbd>Ctrl</kbd>+<kbd>Enter</kbd> confirms and saves &nbsp; <kbd>Esc</kbd> goes back &nbsp; <button type="button" class="lnk" id="keys-off">Hide these</button></span><button type="button" class="lnk" id="keys-on">Show keyboard keys</button></p>
+    </div>
+  </div>
+</section>
+<div id="sheet" hidden role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+  <div class="sheet-in">
+    <div class="sheet-head"><h2 id="sheet-title"></h2><button id="sheet-defs" aria-pressed="false">Definitions</button><button id="sheet-close" class="primary">Done</button></div>
+    <input type="search" id="sheet-q" placeholder="Search this list: word or number" autocomplete="off" aria-label="Search this list">
+    <div id="sheet-list"></div>
+  </div>
+</div>
+
+<section id="v-report" hidden>
+  <div class="panel" style="margin-bottom:14px">
+    <h2>Form setup</h2>
+    <div class="row"><label class="small" for="profile">Form version</label><select id="profile"></select></div>
+    <p class="small" id="profile-src"></p>
+    <div id="extras">
+      <h3>Items 19 to 22: set by the coordination cell for this response</h3>
+      <div class="row" id="extras-row"></div>
+      <p class="small">Leave blank if unused. A named item appears on the capture screen and in the tally.</p>
+      <h3>Team and day, for the MDS Maker layout exports</h3>
+      <div class="row" id="team-row"><input type="text" id="t-org" placeholder="Organisation" maxlength="60" aria-label="Organisation name"><input type="text" id="t-team" placeholder="Team name" maxlength="60" aria-label="Team name"><select id="t-type" aria-label="Team type"><option value="">Team type</option><option value="1m">Type 1 mobile</option><option value="1f">Type 1 fixed</option><option value="2">Type 2</option><option value="3">Type 3</option><option value="sc">Specialized cell</option></select><input type="date" id="t-date" aria-label="Date of activity"></div>
+    </div>
+  </div>
+  <div class="tiles" id="tiles"></div>
+  <div class="panel">
+    <h2>Daily tally</h2>
+    <div class="tscroll"><table id="tally"></table></div>
+    <div class="row">
+      <select id="export-kind" aria-label="Export format"><option value="tally">Daily tally by item number</option><option value="lines">Line list, one row per consultation</option><option value="mm_dr">MDS Maker layout: daily report (DR)</option><option value="mm_ip">MDS Maker layout: patients (IP)</option></select>
+      <button id="copy-report">Copy as CSV</button>
+      <button id="load-day">Add 8 example consultations</button>
+      <button id="clear-day">Clear the day</button>
+    </div>
+    <div class="toast" id="report-msg" role="status"></div>
+  </div>
+</section>
+
+<section id="v-study" hidden>
+  <div class="grid2">
+    <div class="panel" id="study-run"></div>
+    <div class="panel">
+      <h2>Results on this device</h2>
+      <p class="small">For the person running the study. Keep them closed while raters use this device.</p>
+      <div class="row"><button id="show-results" aria-expanded="false">Show results</button></div>
+      <div id="study-results" hidden></div>
+      <div class="row">
+        <button id="copy-study">Copy responses as CSV</button>
+        <button id="clear-study">Delete study data</button>
+      </div>
+      <div class="toast" id="study-msg" role="status"></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  Item numbers and labels follow the form version chosen on the Report tab. The default is the WHO daily reporting form marked Ver 2019 WHO. Injury definitions for that version are quoted word for word from its WHO definitions sheet, as printed. The code was written by an AI assistant.
+  The study view is modelled on Jafar, Sergeant and Lecky, Emerg Med J 2020;37:58 (clinicians code injury vignettes, agreement by Randolph's free-marginal kappa) and adds a tool arm. The vignettes here are placeholders written for this prototype and are not the published ones.
+</footer>
+</div>
+
+<script id="core">
+/* ---------- data ----------
+   The ids below are INTERNAL codes (they happen to be the 2016 draft numbers). Rules, saved records and the study all use them.
+   A form profile (PROFILES) decides the number and label a person sees and what gets exported. Add a form version by adding a profile. */
+var SEX=[{id:1,name:"Male"},{id:2,name:"Female, not pregnant"},{id:3,name:"Female, pregnant"}];
+var AGE=["<1","1-4","5-17","18-64","65+"];
+var EVENTS=[
+ {id:4,g:"Trauma",name:"Major head / spine injury",def:"Serious injury to scalp, skull, brain or spinal cord. Needs a Type 2 or 3 team."},
+ {id:5,g:"Trauma",name:"Major torso injury",def:"Serious chest or abdominal trauma, penetrating or not. Needs a Type 2 or 3 team."},
+ {id:6,g:"Trauma",name:"Major extremity injury",def:"Serious limb injury, including limb-threatening. Needs a Type 2 or 3 team."},
+ {id:7,g:"Trauma",name:"Moderate injury",def:"Outpatient care that needs conscious sedation or a regional block."},
+ {id:8,g:"Trauma",name:"Minor injury",def:"First aid and light dressing, no anaesthesia."},
+ {id:9,g:"Infectious disease",name:"Acute respiratory infection"},
+ {id:10,g:"Infectious disease",name:"Acute watery diarrhoea"},
+ {id:11,g:"Infectious disease",name:"Acute bloody diarrhoea"},
+ {id:12,g:"Infectious disease",name:"Acute jaundice syndrome"},
+ {id:13,g:"Infectious disease",name:"Suspected measles"},
+ {id:14,g:"Infectious disease",name:"Suspected meningitis"},
+ {id:15,g:"Infectious disease",name:"Suspected tetanus"},
+ {id:16,g:"Infectious disease",name:"Acute flaccid paralysis"},
+ {id:17,g:"Infectious disease",name:"Acute haemorrhagic fever"},
+ {id:18,g:"Infectious disease",name:"Fever of unknown origin"},
+ {id:19,g:"Emergency",name:"Surgical emergency (non-trauma)"},
+ {id:20,g:"Emergency",name:"Medical emergency"},
+ {id:21,g:"Other key diseases",name:"Skin disease"},
+ {id:22,g:"Other key diseases",name:"Acute mental health problem"},
+ {id:23,g:"Other key diseases",name:"Obstetric complication"},
+ {id:24,g:"Other key diseases",name:"Severe acute malnutrition"},
+ {id:25,g:"Other key diseases",name:"Other diagnosis"}
+];
+var PROCS=[{id:26,name:"Major procedure"},{id:27,name:"Minor procedure"},{id:28,name:"Limb amputation"},{id:29,name:"Normal vaginal delivery"},{id:30,name:"Caesarean section"},{id:31,name:"Other obstetric / gynae"}];
+var OUTCOMES=[{id:32,name:"Discharge, no follow-up"},{id:33,name:"Discharge with follow-up"},{id:34,name:"Admission"},{id:35,name:"Referral / transfer"},{id:36,name:"Left against advice"},{id:37,name:"Dead on arrival"},{id:38,name:"Death in facility"},{id:39,name:"Needs long-term rehab"}];
+var RELATION=[{id:40,name:"Directly related"},{id:41,name:"Indirectly related"},{id:42,name:"Not related"}];
+var PROT=[{id:43,name:"Vulnerable child"},{id:44,name:"Vulnerable adult"},{id:45,name:"SGBV"},{id:46,name:"Violence (non-SGBV)"}];
+var ALL=[].concat(SEX,EVENTS,PROCS,OUTCOMES,RELATION,PROT);
+/* short chip labels for the one-screen capture view; the full form wording is in the "All" list, the tally and the exports */
+var SHORT={1:"Male",2:"Female",3:"Pregnant",4:"Head/spine major",5:"Torso major",6:"Limb major",7:"Moderate injury",8:"Minor injury",9:"Resp. infection",10:"Watery diarrhoea",11:"Bloody diarrhoea",12:"Acute jaundice",13:"Susp. measles",14:"Susp. meningitis",15:"Susp. tetanus",16:"Flaccid paralysis",17:"Haem. fever",18:"Fever, unknown",19:"Surgical emerg.",20:"Medical emerg.",21:"Skin disease",22:"Acute mental health",23:"Obstetric compl.",24:"Severe malnutrition",25:"Other diagnosis",26:"Major proc.",27:"Minor proc.",28:"Amputation",29:"Vaginal delivery",30:"Caesarean",31:"Obstetric, other",32:"No follow-up",33:"Follow-up",34:"Admitted",35:"Referred",36:"Against advice",37:"Dead on arrival",38:"Death in facility",39:"Long-term rehab",40:"Direct",41:"Indirect",42:"Unrelated",43:"Vulnerable child",44:"Vulnerable adult",45:"SGBV",46:"Violence, non-SGBV"};
+function shortName(id){return SHORT[id]||itemName(id);}
+/* offline recommendation helpers */
+function outcomePrior(ev){ if(ev===4||ev===5||ev===6) return [35,34]; if(ev===19||ev===20) return [34,35]; if(ev===7) return [33,32]; return [32,33]; }
+var PROFILES={
+ who2019:{label:"WHO daily reporting form, Ver 2019 WHO",extras:true,mm:true,laIsMinor:true,
+  src:"Numbers, labels and injury definitions from the official daily reporting form and definitions sheet (Ver 2019 WHO) in the WHO EMT MDS pack.",
+  no:{19:23,20:24,21:25,22:26,23:27,24:28,25:29,26:30,27:32,28:31,29:33,30:34,31:35,32:36,33:37,34:40,35:39,36:38,37:41,38:42,39:43,40:44,41:45,42:46,43:47,44:48,45:49,46:50,101:19,102:20,103:21,104:22},
+  names:{20:"Medical emergency (non-infectious)",23:"Obstetric complications",25:"Other diagnosis, not specified above",26:"Major procedure (excluding limb amputation)",27:"Minor surgical procedure",28:"Limb amputation, excluding digits",31:"Obstetrics, others",32:"Discharge without medical follow-up",33:"Discharge with medical follow-up",35:"Referral",36:"Discharge against medical advice",38:"Death within facility",39:"Requiring long-term rehabilitation",40:"Directly related to event",41:"Indirectly related to event",42:"Not related to event",45:"Sexual and gender-based violence (SGBV)"},
+  defs:{4:"Any major trauma to the scalp, skull, brain and spinal cord requiring hospitalization and/or general anesthesia.",5:"Any major trauma involving the chest and abdomen requiring hospitalization and/or general anesthesia.",6:"Any upper and lower extremity injures requiring hospitalization and/or spinal or general anesthesia.",7:"Injury that can be treated as an outpatient requiring conscious sedation or regional anesthesia excluding spinal anesthesia.",8:"Injury that requires first aid and light dressing care with/without local anesthesia."}},
+ draft2016:{label:"Working group draft v0.94 (2016), 46 items",extras:false,mm:false,laIsMinor:false,defs:{},
+  src:"Working group report, daily reporting form v0.94. Older numbering, no response-specific items.",no:{},names:{}}
+};
+var profileId="who2019";
+var EXTRA_LABELS=["","","",""]; /* items 19 to 22 on the WHO form are left for the coordination cell to define per response; internal codes 101 to 104 */
+function no(id){var n=PROFILES[profileId].no[id];return n!==undefined?n:id;}
+function itemName(id){
+  if(id>100) return EXTRA_LABELS[id-101]||"";
+  var nm=PROFILES[profileId].names[id]; if(nm) return nm;
+  for(var i=0;i<ALL.length;i++)if(ALL[i].id===id)return ALL[i].name;return "";
+}
+function defOf(o){return PROFILES[profileId].defs[o.id]||o.def||"";}
+/* a list as the chosen form shows it: response-specific items added, sorted by form number */
+function items(list){
+  var l=list.slice();
+  if(list===EVENTS&&PROFILES[profileId].extras) EXTRA_LABELS.forEach(function(t,i){ if(t) l.push({id:101+i,g:"Additional, set for this response"}); });
+  return l.sort(function(a,b){return no(a.id)-no(b.id);});
+}
+function tally(day){
+  var count={},u5={};
+  day.forEach(function(r){
+    var young=r.age==="<1"||r.age==="1-4";
+    [r.sex,r.event,r.outcome,r.relation].concat(r.procs||[],r.prot||[]).forEach(function(id){ if(id===null||id===undefined) return; count[id]=(count[id]||0)+1; if(young) u5[id]=(u5[id]||0)+1; });
+  });
+  return {count:count,u5:u5};
+}
+/* export pipelines. Each one is fixed and named. Add a target (for example the MDS Maker files) as another branch once its exact layout is known. */
+var TEAM={org:"",team:"",type:"",date:""};
+var BANDS=["<1","1-4","5-17","18-64","65+"];
+function csvCell(v){v=v===null||v===undefined?"":String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
+function byFormNo(){var m={};ALL.forEach(function(o){m[no(o.id)]=o.id;});EXTRA_LABELS.forEach(function(t,i){m[19+i]=101+i;});return m;}
+function mmDate(){var p=(TEAM.date||"").split("-");return p.length===3?p.join("/"):"";}
+function recHas(r,id){return r.sex===id||r.event===id||r.outcome===id||r.relation===id||(r.procs||[]).indexOf(id)>=0||(r.prot||[]).indexOf(id)>=0;}
+/* Column layout copied from the two hidden CSV sheets of MDS Maker Ver 2019WHO_2.02 (Daily Reporting and MDS_Patient).
+   ToolVer says Stet so nobody mistakes these for files made by MDS Maker. Not yet tried against a coordination cell's import. */
+function mmDR(day){
+  var map=byFormNo(), n;
+  var cnt=function(k,fn){var id=map[k];return id===undefined?0:day.filter(function(r){return recHas(r,id)&&(!fn||fn(r));}).length;};
+  var H=["a","b","c1","c2","c3","c4","c5","d","e","f","n","h","g","i","j","k","l","m","o","p","q","r","s","t","u"];
+  var V=[TEAM.org,TEAM.team].concat(["1m","1f","2","3","sc"].map(function(t){return TEAM.type===t?"1":"0";}),
+    ["","","","",mmDate(),"","","","","",", ",day.length,day.filter(function(r){return r.outcome===34;}).length,"","","","",""]);
+  var u5=function(r){return r.age==="<1"||r.age==="1-4";}, o5=function(r){return r.age==="5-17"||r.age==="18-64"||r.age==="65+";};
+  for(n=1;n<=3;n++){ ["0","1-4","5-17","18-64","65-"].forEach(function(lab,i){H.push("MDS"+n+":"+lab);V.push(cnt(n,function(r){return r.age===BANDS[i];}));}); H.push("Total"+n);V.push(cnt(n)); }
+  for(n=4;n<=35;n++){ H.push("MDS"+n+":0","MDS"+n+":5-","Total"+n); V.push(cnt(n,u5),cnt(n,o5),cnt(n)); }
+  for(n=36;n<=50;n++){ H.push("MDS"+n); V.push(cnt(n)); }
+  for(n=51;n<=65;n++){ H.push(String(n)); V.push(""); }
+  for(n=1;n<=4;n++){ H.push("NR"+n+"-No","NR"+n+"-DC"); V.push("",""); }
+  H.push("ToolVer","Ver"); V.push("Stet","2019WHO");
+  return H.join(",")+"\n"+V.map(csvCell).join(",");
+}
+function mmIP(day){
+  var map=byFormNo(), n, H=["a","b","d","e","f","h","g","i","j","k","l","m","ID","MDSa","Age","M/Y","MDS1-3"];
+  for(n=4;n<=50;n++) H.push("MDS"+n);
+  H.push("ToolVer","Ver");
+  var rows=[H.join(",")];
+  day.forEach(function(r,i){
+    var V=[TEAM.org,TEAM.team,"","","",mmDate(),"","","","","",", ","ID"+(i+1),r.age?BANDS.indexOf(r.age)+1:"",r.years===null||r.years===undefined?"":r.years,"Y",r.sex||""];
+    for(var k=4;k<=50;k++){ var id=map[k]; V.push(id!==undefined&&recHas(r,id)?1:0); }
+    V.push("Stet","2019WHO"); rows.push(V.map(csvCell).join(","));
+  });
+  return rows.join("\n");
+}
+function buildExport(kind,day){
+  var rows;
+  if(kind==="mm_dr") return mmDR(day);
+  if(kind==="mm_ip") return mmIP(day);
+  if(kind==="lines"){
+    var n=function(v){return v===null||v===undefined?"":no(v);};
+    rows=["time,sex,age_band,health_event,outcome,relation,procedures,protection"];
+    day.forEach(function(r){rows.push([new Date(r.t).toISOString(),n(r.sex),r.age||"",n(r.event),n(r.outcome),n(r.relation),(r.procs||[]).map(function(x){return no(x);}).join(";"),(r.prot||[]).map(function(x){return no(x);}).join(";")].join(","));});
+    return rows.join("\n");
+  }
+  var t=tally(day); rows=["no,item,under5,total"];
+  [SEX,EVENTS,PROCS,OUTCOMES,RELATION,PROT].forEach(function(l){items(l).forEach(function(o){rows.push(no(o.id)+',"'+itemName(o.id).replace(/"/g,'""')+'",'+(t.u5[o.id]||0)+","+(t.count[o.id]||0));});});
+  return rows.join("\n");
+}
+
+var FLAG_LOCAL="<b>Gap in the definitions.</b> Local anaesthetic sits between minor (no anaesthesia) and moderate (sedation or a block). You decide.";
+var FLAG_SEV="<b>Injury, severity unclear.</b> Sedation or a block: moderate. First aid only: minor.";
+var FLAG_BOTH="<b>Mixed signals.</b> The note has both moderate and minor cues. Check which injury you are counting.";
+var FLAG_POLY="<b>More than one major region.</b> Pick the one that drives care.";
+
+/* ---------- rules classifier: offline, deterministic ---------- */
+function band(y){return y<1?"<1":y<5?"1-4":y<18?"5-17":y<65?"18-64":"65+";}
+function classify(note){
+  var t=note||"", ev=[], out={sex:null,age:null,years:null,event:null,procs:[],outcome:null,relation:null,prot:[],evidence:ev,flag:"",alts:[],why:{}}, cf="sex";
+  function hit(re){var m=re.exec(t);if(m){ev.push(m[0]);(out.why[cf]=out.why[cf]||[]).push(m[0]);return m;}return null;}
+  // sex
+  if(/\bnot pregnant\b/i.test(t)){ if(hit(/\b(f|female|woman|girl|lady)\b/i)) out.sex=2; }
+  else if(hit(/pregnan\w*|\b\d{1,2}\/40\b|gravid\w*/i)) out.sex=3;
+  else if(hit(/\b(f|female|woman|girl|lady)\b/i)) out.sex=2;
+  else if(hit(/\b(m|male|man|boy)\b/i)) out.sex=1;
+  // age
+  cf="age";
+  var m=hit(/\b(\d{1,2})\s*(?:\/12\b|mo\b|months?\b)/i), yrs=null;
+  if(m) yrs=parseInt(m[1],10)/12;
+  else{
+    m=hit(/\b(?:m|f|male|female|man|woman|boy|girl)\s*,?\s*(\d{1,3})\b/i)||hit(/\b(\d{1,3})\s*(?:yo\b|y\/o\b|yrs?\b|years?\b|y\b)/i)||hit(/\baged?\s*(\d{1,3})\b/i);
+    if(m) yrs=parseInt(m[1],10);
+  }
+  if(yrs!==null&&yrs<=120){out.age=band(yrs);out.years=Math.floor(yrs);}
+  // health event: trauma first
+  cf="event";
+  var maj=[];
+  if(hit(/gcs\s*(?:of\s*)?(?:[3-9]|1[0-2])\b|unequal pupils|skull|can'?t move (?:his |her |their )?legs|paraly\w*|spinal|no sensation|depressed fracture/i)) maj.push(4);
+  if(hit(/flail\w*|stab wound|rigid abdomen|penetrating|ha?emothorax|eviscerat\w*|tension pneumo\w*/i)) maj.push(5);
+  if(hit(/open (?:tib\S*|fem\S*|fracture|#)|pulseless|compartment|crush injury|mangled|limb[- ]threatening|traumatic amputation/i)) maj.push(6);
+  var mod=hit(/ha?ematoma block|sedation|regional block|nerve block|ketamine|bier'?s? block/i);
+  var min=hit(/steri-?strips?|sprain\w*|abrasion|graze\w*|bruis\w*|light dressing|strapping|glued?\b|first aid/i);
+  var local=/sutur\w*|local ana?esth\w*|\bLA\b|lidocaine|lignocaine/.test(t);
+  var laMinor=!!PROFILES[profileId].laIsMinor; /* the 2019 definition counts local anaesthetic as minor; the 2016 draft left it between minor and moderate */
+  var generic=/lacerat|\blac\b|fractur|wound|injur|dislocat|crush|\bfell\b|\bfall\b|burn/i.test(t);
+  if(maj.length){out.event=maj[0]; out.alts=maj.slice(1); if(maj.length>1) out.flag=FLAG_POLY;}
+  else if(mod&&min){out.event=7; out.alts=[8]; out.flag=FLAG_BOTH;}
+  else if(mod){out.event=7; out.alts=[8];}
+  else if(min){out.event=8; if(local&&!laMinor) out.flag=FLAG_LOCAL;}
+  else if(generic&&local&&laMinor){out.event=8; hit(/sutur\w*|local ana?esth\w*|\bLA\b|lidocaine|lignocaine/);}
+  else if(generic){out.flag=local?FLAG_LOCAL:FLAG_SEV; out.alts=[8,7];}
+  else{
+    var med=[[13,/measles|koplik/i],[14,/mening\w*|neck stiff\w*/i],[15,/tetanus|trismus|lockjaw/i],[16,/flaccid/i],[17,/ha?emorrhagic fever/i],[12,/jaundice\w*/i],
+     [11,/bloody diarrh\w*|blood in stools?|dysentery/i],[10,/diarrh\w*|loose stools?/i],[23,/obstructed labou?r|\bpph\b|postpartum ha?em\w*|eclamp\w*|antepartum/i],
+     [19,/appendic\w*|perforat\w*|strangulat\w*|peritonitis/i],[20,/asthma\w*|stemi|pulmonary embol\w*|poison\w*|overdose|seizure|\bdka\b|anaphyla\w*/i],
+     [9,/cough\w*|pneumonia|sore throat|respiratory infection|\buri\b|\blrti\b/i],[24,/\bmuac\b|wasting|malnutrition|\bsam\b/i],[22,/panic\w*|acute stress|psychosis|psychotic|suicid\w*/i],
+     [21,/rash|scabies|impetigo|fungal|cellulitis/i],[18,/fever|febrile|pyrexia/i]];
+    for(var i=0;i<med.length;i++){ if(hit(med[i][1])){out.event=med[i][0];break;} }
+  }
+  // procedures
+  cf="procs";
+  var pr=[[28,/amputat\w*/i],[30,/c(?:a)?esarean|c-section|\blscs\b/i],[29,/\bnvd\b|vaginal delivery/i],[31,/d&c|ectopic/i],[26,/laparotomy|thoracotomy|general ana?esth\w*|\bex-?fix\b/i],[27,/sutur\w*|local ana?esth\w*|incision and drainage|i&d|ha?ematoma block|reduc(?:ed|tion)|backslab/i]];
+  for(var j=0;j<pr.length;j++){ if(hit(pr[j][1])) out.procs.push(pr[j][0]); }
+  // outcome
+  cf="outcome";
+  var oc=[[37,/dead on arrival|\bdoa\b/i],[38,/\bdied\b|death in/i],[36,/against medical advice|\bama\b|self-?discharg\w*|absconded/i],[35,/refer\w*|transfer\w*|sent to (?:type|hospital)\S*/i],[34,/admit\w*/i],[39,/rehab\w*/i],[33,/follow[- ]?up|review in|return in|come back|wound check|\bf\/u\b/i],[32,/\bhome\b|discharged?/i]];
+  for(var k=0;k<oc.length;k++){ if(hit(oc[k][1])){out.outcome=oc[k][0];break;} }
+  // relation to the event
+  cf="relation";
+  var rl=[[42,/unrelated|chronic|long-?standing|pre-?existing|routine/i],[41,/displace\w*|\bcamp\b|shelter|ran out of|clean-?up|clearing|repairing|contaminated water/i],[40,/earthquake|quake|collaps\w*|wall fell|flood\w*|cyclone|debris|rubble|\bbeam\b|landslide|tsunami|blast|trapped/i]];
+  for(var r=0;r<rl.length;r++){ if(hit(rl[r][1])){out.relation=rl[r][0];break;} }
+  // protection
+  cf="prot";
+  if(hit(/sexual\w*|\brape\w*|\bsgbv\b/i)) out.prot.push(45);
+  else if(hit(/assault\w*|\bstab\w*|beaten|gunshot|\bgsw\b|machete/i)) out.prot.push(46);
+  if(hit(/unaccompanied|separated from|orphan\w*|no (?:family|parents)/i)) out.prot.push(43);
+  if(hit(/no carer|bedbound|abandoned/i)) out.prot.push(44);
+  return out;
+}
+
+/* ranges of evidence phrases inside the note, merged, for highlighting */
+function ranges(note,phrases){
+  var low=note.toLowerCase(), rs=[];
+  phrases.forEach(function(p){ if(!p) return; var i=low.indexOf(String(p).toLowerCase()); if(i>=0) rs.push([i,i+String(p).length]); });
+  rs.sort(function(a,b){return a[0]-b[0];});
+  var out=[]; rs.forEach(function(r){ var l=out[out.length-1]; if(l&&r[0]<=l[1]) l[1]=Math.max(l[1],r[1]); else out.push(r.slice()); });
+  return out;
+}
+
+/* Randolph's free-marginal multirater kappa. cases = array of arrays of chosen categories. k = number of categories. */
+function randolph(cases,k){
+  var sum=0,n=0;
+  cases.forEach(function(c){
+    if(c.length<2) return;
+    var counts={}; c.forEach(function(x){counts[x]=(counts[x]||0)+1;});
+    var agree=0; Object.keys(counts).forEach(function(x){agree+=counts[x]*(counts[x]-1);});
+    sum+=agree/(c.length*(c.length-1)); n++;
+  });
+  if(!n) return null;
+  var po=sum/n; return {po:po,kappa:(po-1/k)/(1-1/k),cases:n};
+}
+
+/* Placeholder vignettes. ref = this prototype's reference answer, one student's reading of the definitions. */
+var VIGNETTES=[
+ {id:"v01",ref:4,text:"M 34. Wall fell on him. GCS 9, boggy right parietal swelling, unequal pupils."},
+ {id:"v02",ref:4,text:"F 8. Fell from a roof 2 days ago. Now can't move legs, no sensation below the umbilicus."},
+ {id:"v03",ref:5,text:"M 50. Crushed under a beam. Flail segment left chest, sats 84% on air."},
+ {id:"v04",ref:5,text:"F 27, 30/40. Stab wound right upper quadrant, rigid abdomen, HR 130."},
+ {id:"v05",ref:6,text:"M 19. Open tib/fib fracture, foot cold and pulseless."},
+ {id:"v06",ref:6,text:"F 61. Crush injury to forearm, trapped 9 hours. Tense swelling, pain on passive stretch."},
+ {id:"v07",ref:7,text:"M 12. Displaced closed wrist fracture. Reduced under haematoma block, backslab, home."},
+ {id:"v08",ref:7,text:"F 40. Anterior shoulder dislocation, reduced with sedation in the tent, sling, home."},
+ {id:"v09",ref:8,text:"M 6. 3 cm scalp lac, no loss of consciousness, playing normally. Cleaned, steristrips."},
+ {id:"v10",ref:8,text:"F 70. Sprained ankle, weight bearing. Strapping and advice."},
+ {id:"v11",ref:8,alt:{draft2016:{ref:7,hard:true}},text:"M 45. Deep 6 cm thigh laceration from sheet metal. Sutured under local anaesthetic, home."},
+ {id:"v12",ref:8,hard:true,text:"F 30. Closed fractured clavicle after a fall. Sling and analgesia, home."}
+];
+/* reference answer and "between definitions" marker for the chosen form version */
+function vg(v){var a=v.alt&&v.alt[profileId];return {ref:a?a.ref:v.ref,hard:a?!!a.hard:!!v.hard};}
+var EXAMPLES=[
+ {label:"Earthquake, head injury",text:"M 34 pulled from rubble after wall fell on him. GCS 9, unequal pupils, boggy R parietal swelling. Transfer to type 3."},
+ {label:"Child, wrist fracture",text:"boy 12y fell during clean-up, displaced closed wrist #, reduced under haematoma block, backslab. home, review in 1 week"},
+ {label:"Thigh laceration, sutured",text:"M 45 deep 6cm thigh lac from sheet metal clearing debris. sutured under local anaesthetic. home, wound check 2 days"},
+ {label:"Diarrhoea in the camp",text:"F 3 yrs, loose stools x5 today, no blood, drinking ok. family displaced, living in camp. ORS, home"},
+ {label:"Pregnant, stab wound",text:"F 27 pregnant 30/40, stab wound RUQ, rigid abdomen, HR 130. admitted for laparotomy"},
+ {label:"Spanish note (needs Ask Claude)",text:"Mujer de 68 años, se le acabó la medicación de la tensión desde la inundación. Cefalea, TA 190/110. Vive sola, sin cuidador. Se deriva al hospital."},
+ {label:"Clavicle fracture (severity unclear)",text:"F 30 closed clavicle fracture after a fall during the flood clean-up. sling and analgesia. home, review in 1 week"}
+];
+</script>
+
+<script>
+(function(){
+"use strict";
+var $=function(id){return document.getElementById(id);};
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
+function load(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch(e){return d;}}
+function save(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}
+function copy(text,msgEl){
+  var done=function(ok){msgEl.textContent=ok?"Copied. Paste it into a spreadsheet.":"Copy was blocked. Select the table and copy by hand.";};
+  try{navigator.clipboard.writeText(text).then(function(){done(true);},function(){done(false);});}catch(e){done(false);}
+}
+
+/* ---------- routing ---------- */
+var VIEWS=["capture","report","study"];
+function route(){
+  var v=(location.hash||"").replace("#",""); if(VIEWS.indexOf(v)<0) v="capture";
+  VIEWS.forEach(function(x){$("v-"+x).hidden=x!==v;}); document.body.setAttribute("data-view",v);
+  [].forEach.call(document.querySelectorAll("nav a"),function(a){a.classList.toggle("on",a.getAttribute("data-tab")===v);});
+  if(v==="report") renderReport();
+  if(v==="study"){renderStudy();renderStudyResults();}
+}
+window.addEventListener("hashchange",route);
+
+/* ---------- capture ---------- */
+var CORE=["sex","age","event","outcome","relation"];
+var rec;
+function blank(){return {sex:{v:null,s:0},age:{v:null,s:0},event:{v:null,s:0},outcome:{v:null,s:0},relation:{v:null,s:0},procs:{},prot:{}};}
+/* s: 0 empty, 1 suggested, 2 confirmed */
+function applySuggestion(sg){
+  lastSugg={event:sg.event,outcome:sg.outcome}; lastAlts=sg.alts||[];
+  CORE.forEach(function(f){ if(rec[f].s===2) return; var v=sg[f]; rec[f]=(v===null||v===undefined)?{v:null,s:0}:{v:v,s:1}; });
+  ["procs","prot"].forEach(function(f){
+    Object.keys(rec[f]).forEach(function(id){ if(rec[f][id]===1) delete rec[f][id]; });
+    (sg[f]||[]).forEach(function(id){ if(rec[f][id]!==2) rec[f][id]=1; });
+  });
+}
+var FIELD_LIST={sex:SEX,event:EVENTS,outcome:OUTCOMES,relation:RELATION,procs:PROCS,prot:PROT};
+var FIELD_NAME={sex:"Sex",age:"Age",event:"Event",outcome:"Outcome",relation:"Relation",procs:"Procedure",prot:"Protection"};
+var lastSugg={}, lastAlts=[], lastWhy={}, lastFlag="", lastAsk=false;
+/* Which options to put in front of the clinician. Works offline: what the note suggests, close alternatives,
+   what usually follows this kind of event, what this team has ticked most today, then common defaults. */
+function recsFor(f,freq){
+  var all=items(FIELD_LIST[f]).map(function(o){return o.id;}), out=[];
+  if(f==="sex"||f==="relation") return all;
+  var add=function(id){ if(id!==null&&id!==undefined&&all.indexOf(id)>=0&&out.indexOf(id)<0) out.push(id); };
+  add(lastSugg[f]);
+  if(f==="event") lastAlts.forEach(add);
+  if(f==="outcome") outcomePrior(rec.event.v).forEach(add);
+  all.filter(function(id){return freq[id];}).sort(function(a,b){return freq[b]-freq[a];}).forEach(add);
+  (f==="event"?[8,9,25,7]:[32,33,35,34]).forEach(add);
+  return out.slice(0,4);
+}
+function top3(f,freq){ var r=recsFor(f,freq).slice(0,3), cur=rec[f].v; if(cur!==null&&r.indexOf(cur)<0) r[r.length-1]=cur; return r; }
+function tile(f,id,label,num,st){
+  return '<button type="button" class="chip tl'+(st===1?" sugg":st===2?" conf":"")+'" data-f="'+f+'" data-v="'+esc(id)+'" aria-pressed="'+(st===2)+'">'+(num!==""&&num!==undefined?"<i>"+esc(num)+"</i>":"")+"<span>"+esc(label)+"</span></button>";
+}
+/* 0 pick, 1 check (a suggestion is waiting), 2 confirmed, -1 nothing recorded (Also only) */
+function lineState(f){
+  if(f==="who") return (rec.sex.s===0||rec.age.s===0)?0:(rec.sex.s===2&&rec.age.s===2?2:1);
+  if(f==="also"){ var a=[]; ["procs","prot"].forEach(function(k){Object.keys(rec[k]).forEach(function(id){a.push(rec[k][id]);});}); return a.length?(a.indexOf(1)>=0?1:2):-1; }
+  return rec[f].s;
+}
+function whyFor(f){
+  var keys=f==="who"?["sex","age"]:f==="also"?["procs","prot"]:[f], w=[];
+  keys.forEach(function(k){(lastWhy[k]||[]).forEach(function(p){ if(p&&w.indexOf(p)<0) w.push(p); });});
+  return w.filter(function(p){return !w.some(function(q){return q!==p&&q.length>p.length&&q.indexOf(p)>=0;});}).slice(0,3).join(", ");
+}
+/* one search across every box: matches by form number or name, and lets the note rules read the phrase too */
+function findMatches(q){
+  q=q.trim().toLowerCase(); if(!q) return [];
+  var out=[], seen={}, add=function(f,id){ var k=f+":"+id; if(!seen[k]){ seen[k]=1; out.push([f,id]); } };
+  var sg=classify(q);
+  if(sg.event!==null) add("event",sg.event);
+  (sg.alts||[]).forEach(function(id){add("event",id);});
+  sg.procs.forEach(function(id){add("procs",id);});
+  if(sg.outcome!==null) add("outcome",sg.outcome);
+  if(sg.relation!==null) add("relation",sg.relation);
+  sg.prot.forEach(function(id){add("prot",id);});
+  var isNum=/^\d+$/.test(q);
+  ["event","procs","outcome","relation","prot","sex"].forEach(function(f){ items(FIELD_LIST[f]).forEach(function(o){
+    if(isNum?String(no(o.id))===q:(itemName(o.id)+" "+shortName(o.id)+" "+(o.g||"")).toLowerCase().indexOf(q)>=0) add(f,o.id); }); });
+  if(!isNum) AGE.forEach(function(a){ if(a.indexOf(q)>=0) add("age",a); });
+  return out.slice(0,8);
+}
+function asking(){ return lastAsk&&rec.event.s===0; }
+function renderFields(){
+  var q=$("find").value.trim(), h="";
+  if(q){
+    var m=findMatches(q);
+    h='<div class="frow"><div class="rh"><span class="rl">Matches</span><span class="why">tap one to put it in</span></div>'+(m.length?'<div class="tg t2">'+m.map(function(x){
+      return '<button type="button" class="tl hit" data-hf="'+x[0]+'" data-hv="'+esc(x[1])+'"><small>'+FIELD_NAME[x[0]]+"</small><span>"+(x[0]==="age"?esc(x[1])+" years":"<i>"+no(x[1])+"</i> "+esc(itemName(x[1])))+"</span></button>";}).join("")+"</div>"
+      :'<p class="small">No box matches. Try another word or a box number.</p>')+"</div>";
+  } else {
+    var freq=tally(load("mds.day",[])).count;
+    var head=function(f,name){ var st=lineState(f), why=st===1?whyFor(f):"";
+      var fl=f==="event"?lastFlag.replace(/^<div class="flag">|<\/div>$/g,""):"";
+      if(f==="event"&&asking()) fl="<b>How was it treated?</b> If neither fits, the definitions do not cover it: choose from All.";
+      return '<div class="frow s'+(st<0?"n":st)+'" data-f="'+f+'"><div class="rh"><span class="rl">'+name+"</span>"+(f==="event"?'<span class="why warn" id="flag" title="'+esc(fl.replace(/<[^>]+>/g,""))+'">'+fl+"</span>":"")+(fl?"":'<span class="why">'+(why?"read: "+esc(why):"")+"</span>")+'<span class="rs">'+(st===2?"✓ ok":st===1?"check":st===0?"pick":"")+"</span></div>"; };
+    var some=function(f,cls){ return '<div class="tg '+cls+'">'+top3(f,freq).map(function(id){return tile(f,id,shortName(id),no(id),rec[f].v===id?rec[f].s:0);}).join("")+'<button type="button" class="tl more" data-more="'+f+'">All '+items(FIELD_LIST[f]).length+"</button></div>"; };
+    h+=head("who","Who")+'<div class="tg t3">'+items(SEX).map(function(o){return tile("sex",o.id,shortName(o.id),no(o.id),rec.sex.v===o.id?rec.sex.s:0);}).join("")+'</div><div class="tg t5">'+AGE.map(function(a){return tile("age",a,a,"",rec.age.v===a?rec.age.s:0);}).join("")+"</div></div>";
+    var qt=function(id,lab){ return '<button type="button" class="chip tl q" data-f="event" data-v="'+id+'" aria-pressed="false"><small>'+lab+'</small><span><i>'+esc(no(id))+"</i> "+esc(shortName(id))+"</span></button>"; };
+    h+=head("event","Event")+(asking()?'<div class="tg tq">'+qt(7,"Sedation or block")+qt(8,PROFILES[profileId].laIsMinor?"First aid, dressing, local":"First aid, dressing")+'<button type="button" class="tl more" data-more="event">All '+items(EVENTS).length+"</button></div>":some("event","t4"))+"</div>";
+    h+=head("outcome","Outcome")+some("outcome","t4")+"</div>";
+    h+=head("relation","Relation")+'<div class="tg t3">'+items(RELATION).map(function(o){return tile("relation",o.id,shortName(o.id),no(o.id),rec.relation.v===o.id?rec.relation.s:0);}).join("")+"</div></div>";
+    var also=""; ["procs","prot"].forEach(function(k){Object.keys(rec[k]).map(Number).forEach(function(id){also+=tile(k,id,shortName(id),no(id),rec[k][id]);});});
+    h+=head("also","Also")+'<div class="tg t3">'+(also||'<span class="none">None recorded</span>')+'<button type="button" class="tl more" data-more="also">Add</button></div></div>';
+  }
+  $("fields").innerHTML=h;
+  [["sex","MFP"],["age","12345"],["relation","DIU"]].forEach(function(x){ var bs=document.querySelectorAll('#fields .chip[data-f="'+x[0]+'"]'); for(var i2=0;i2<bs.length&&i2<x[1].length;i2++){ var kb=document.createElement("kbd"); kb.textContent=x[1].charAt(i2); kb.setAttribute("aria-hidden","true"); bs[i2].appendChild(kb); } });
+  [["event","E"],["outcome","O"],["also","A"]].forEach(function(x){ var m2=document.querySelector('#fields .more[data-more="'+x[0]+'"]'); if(m2){ var kb=document.createElement("kbd"); kb.textContent=x[1]; kb.setAttribute("aria-hidden","true"); m2.appendChild(kb); } });
+  $("meter").innerHTML=CORE.map(function(f){var s2=rec[f].s; return '<span class="'+(s2===2?"c":s2===1?"s":"")+'"></span>';}).join("");
+  $("tag-title").textContent="patient "+(load("mds.day",[]).length+1);
+  var miss=CORE.filter(function(f){return rec[f].s!==2;}), some=CORE.some(function(f){return rec[f].s>0;})||Object.keys(rec.procs).length||Object.keys(rec.prot).length;
+  $("save-rec").classList.toggle("part",!!(some&&miss.length));
+  $("save-miss").textContent=(some&&miss.length)?(miss.length===CORE.length?"nothing confirmed yet":miss.length===1?"no "+FIELD_NAME[miss[0]].toLowerCase()+" confirmed":miss.length+" of 5 not confirmed"):"";
+}
+$("find").addEventListener("input",function(){renderFields();});
+/* full list for one row: a dense grid that fits one screen, or a list with the WHO definitions */
+var sheetF=null, sheetDefs=false;
+function renderSheet(){
+  if(!sheetF) return;
+  var q=$("sheet-q").value.trim().toLowerCase(), isNum=/^\d+$/.test(q), h="", cols=sheetF==="event"?4:2;
+  var stOf=function(f,id){return (f==="procs"||f==="prot")?(rec[f][id]||0):(rec[f].v===id?rec[f].s:0);};
+  var block=function(title,f,arr){
+    arr=arr.filter(function(o){ return !q||(isNum?String(no(o.id)).indexOf(q)===0:(itemName(o.id)+" "+shortName(o.id)+" "+(o.g||"")).toLowerCase().indexOf(q)>=0); });
+    if(!arr.length) return;
+    h+='<div class="sg">'+esc(title)+'</div><div class="'+(sheetDefs?"ol":"tg t"+cols)+'">'+arr.map(function(o){
+      var st=stOf(f,o.id), c=st===2?" conf":st===1?" sugg":"", d=defOf(o);
+      return sheetDefs
+        ? '<button type="button" class="opt rowo'+c+'" data-f="'+f+'" data-v="'+o.id+'" aria-pressed="'+(st===2)+'"><i>'+no(o.id)+"</i><span>"+esc(itemName(o.id))+(d?"<small>"+esc(d)+"</small>":"")+"</span></button>"
+        : '<button type="button" class="opt tl'+c+'" data-f="'+f+'" data-v="'+o.id+'" title="'+esc(itemName(o.id))+'" aria-pressed="'+(st===2)+'"><i>'+no(o.id)+"</i><span>"+esc(shortName(o.id))+"</span></button>";
+    }).join("")+"</div>";
+  };
+  if(sheetF==="also"){ block("Procedure","procs",items(PROCS)); block("Protection concern","prot",items(PROT)); }
+  else {
+    var f=sheetF, all=items(FIELD_LIST[f]), likely=q?[]:recsFor(f,tally(load("mds.day",[])).count);
+    if(likely.length&&likely.length<all.length) block("Likely",f,likely.map(function(id){return all.filter(function(o){return o.id===id;})[0];}));
+    var rest=all.filter(function(o){return likely.indexOf(o.id)<0;}), groups=[];
+    var gOf=function(o){ return (o.g==="Trauma"||o.g==="Infectious disease")?o.g:(f==="event"?"Other":"Everything else"); };
+    rest.forEach(function(o){ var g=gOf(o); if(groups.indexOf(g)<0) groups.push(g); });
+    groups.forEach(function(g){ block(g,f,rest.filter(function(o){return gOf(o)===g;})); });
+  }
+  $("sheet-list").innerHTML=h||'<p class="small">Nothing matches.</p>';
+}
+function openSheet(f){
+  sheetF=f; $("sheet-title").textContent=({event:"Health event",outcome:"Outcome",also:"Procedure or concern"})[f]||f;
+  $("sheet-q").value=""; renderSheet(); $("sheet").hidden=false; $("sheet-close").focus();
+}
+function closeSheet(){ $("sheet").hidden=true; sheetF=null; }
+$("sheet-q").addEventListener("input",renderSheet);
+$("sheet-close").addEventListener("click",closeSheet);
+$("sheet-defs").addEventListener("click",function(){ sheetDefs=!sheetDefs; this.textContent=sheetDefs?"Grid":"Definitions"; this.setAttribute("aria-pressed",String(sheetDefs)); renderSheet(); });
+document.addEventListener("keydown",function(e){
+  if(document.body.getAttribute("data-view")!=="capture") return;
+  var open=!$("sheet").hidden, t=e.target, typing=t&&(t.tagName==="TEXTAREA"||t.tagName==="SELECT"||(t.tagName==="INPUT"&&!/^(button|checkbox|radio)$/.test(t.type)));
+  if(e.key==="Escape"){ if(open) closeSheet(); else if($("find").value){ $("find").value=""; renderFields(); } else if(typing) t.blur(); return; }
+  if(open) return;
+  if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)){ e.preventDefault(); $("confirm-all").click(); $("save-rec").click(); return; }
+  if(typing){ if(e.key==="Enter"&&t.id==="find"){ var h1=document.querySelector("#fields .hit"); if(h1){ e.preventDefault(); h1.click(); t.blur(); } } return; }
+  if(e.ctrlKey||e.metaKey||e.altKey) return;
+  var k=e.key.length===1?e.key.toLowerCase():e.key, tap=function(f,i){ var b=document.querySelectorAll('#fields .chip[data-f="'+f+'"]')[i]; if(b) b.click(); };
+  if(k==="/"){ e.preventDefault(); $("find").focus(); }
+  else if(k==="?"){ setKeys(document.body.classList.contains("nokeys")); }
+  else if(k==="n"){ e.preventDefault(); $("note").focus(); }
+  else if(k==="Enter"&&!(t&&t.tagName==="BUTTON")){ e.preventDefault(); $("confirm-all").click(); }
+  else if(k==="m") tap("sex",0); else if(k==="f") tap("sex",1); else if(k==="p") tap("sex",2);
+  else if(/^[1-5]$/.test(k)) tap("age",+k-1);
+  else if(k==="d") tap("relation",0); else if(k==="i") tap("relation",1); else if(k==="u") tap("relation",2);
+  else if(k==="e"||k==="o"||k==="a"){ e.preventDefault(); openSheet(k==="e"?"event":k==="o"?"outcome":"also"); $("sheet-q").focus(); }
+});
+$("sheet-list").addEventListener("click",function(e){
+  var b=e.target.closest(".opt"); if(!b||!sheetF) return;
+  var f=b.getAttribute("data-f"), v=parseInt(b.getAttribute("data-v"),10), set=true;
+  if(f==="procs"||f==="prot"){ if(rec[f][v]===2) delete rec[f][v]; else rec[f][v]=2; }
+  else if(rec[f].v===v&&rec[f].s===2){ rec[f]={v:null,s:0}; set=false; }
+  else rec[f]={v:v,s:2};
+  renderFields();
+  if(sheetF==="also"||!set) renderSheet(); else closeSheet();
+});
+var lastEvidence=[], lastYears=null;
+function renderEcho(){
+  var t=$("note").value, ph=[];
+  Object.keys(lastWhy||{}).forEach(function(k){(lastWhy[k]||[]).forEach(function(p){ if(p&&p.length>1&&ph.indexOf(p)<0) ph.push(p); });});
+  if(!t.trim()){ $("nview").innerHTML=""; return; }
+  if(!ph.length){ $("nview").textContent=t; return; }
+  var owner={}; Object.keys(lastWhy||{}).forEach(function(k){ var row=(k==="sex"||k==="age")?"who":(k==="procs"||k==="prot")?"also":k; (lastWhy[k]||[]).forEach(function(p){ if(p) owner[String(p).toLowerCase()]=owner[String(p).toLowerCase()]||row; }); });
+  ph.sort(function(a,b){return b.length-a.length;});
+  var re=new RegExp("("+ph.map(function(p){return p.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");}).join("|")+")","gi"), out="", last=0, m;
+  while((m=re.exec(t))){ if(!m[0]){ re.lastIndex++; continue; } var ow=owner[m[0].toLowerCase()]||""; out+=esc(t.slice(last,m.index))+'<mark'+(ow?' data-f="'+ow+'" title="Read for '+ROWNAME[ow]+'"':"")+">"+esc(m[0])+"</mark>"; last=m.index+m[0].length; }
+  $("nview").innerHTML=out+esc(t.slice(last));
+}
+var ROWNAME={who:"Who",event:"Event",outcome:"Outcome",relation:"Relation",also:"Also"};
+function flash(els,cls){ [].forEach.call(els,function(x){ x.classList.remove(cls); void x.offsetWidth; x.classList.add(cls); setTimeout(function(){x.classList.remove(cls);},1600); }); }
+$("nview").addEventListener("click",function(e){
+  var mk=e.target.closest("mark[data-f]");
+  if(mk){ flash(document.querySelectorAll('#fields .frow[data-f="'+mk.getAttribute("data-f")+'"]'),"flash"); flash(document.querySelectorAll('#nview mark[data-f="'+mk.getAttribute("data-f")+'"]'),"on"); return; }
+  $("note").focus();
+});
+$("fields").addEventListener("click",function(e){ var rh=e.target.closest(".rh"); if(!rh||e.target.closest("button")) return; var f=rh.parentNode.getAttribute("data-f"); if(f) flash(document.querySelectorAll('#nview mark[data-f="'+f+'"]'),"on"); });
+function runRules(){ fitNote();
+  var sg=classify($("note").value);
+  lastWhy=sg.why||{}; applySuggestion(sg); lastEvidence=sg.evidence; lastYears=sg.years;
+  lastFlag=sg.flag?'<div class="flag">'+sg.flag+"</div>":""; lastAsk=sg.flag===FLAG_SEV;
+  renderEcho(); renderFields();
+  var found=sg.sex!==null||sg.age!==null||sg.event!==null||sg.outcome!==null||sg.relation!==null||sg.flag;
+  if($("note").value.trim()&&!found&&!$("btn-ai").hidden) $("ai-msg").textContent="The offline rules found nothing here. Try Ask Claude.";
+}
+var timer=null;
+function fitNote(){var t=$("note");t.style.height="0px";t.style.minHeight="0";var h=Math.max(52,Math.min(t.scrollHeight+4,window.innerHeight<740?90:170));t.style.height="";t.style.minHeight="";t.parentNode.style.flexBasis=h+"px";}
+window.addEventListener("resize",fitNote);
+$("note").addEventListener("input",function(){fitNote();if(undoSnap){undoSnap=null;$("toast").textContent="";}clearTimeout(timer);timer=setTimeout(runRules,250);$("ai-msg").textContent="";});
+$("fields").addEventListener("click",function(e){
+  var hit=e.target.closest(".hit"), f, raw, v;
+  if(hit){
+    f=hit.getAttribute("data-hf"); raw=hit.getAttribute("data-hv"); v=f==="age"?raw:parseInt(raw,10);
+    if(f==="procs"||f==="prot") rec[f][v]=2; else rec[f]={v:v,s:2};
+    $("find").value=""; renderFields(); return;
+  }
+  var m=e.target.closest(".more"); if(m){ openSheet(m.getAttribute("data-more")); return; }
+  var b=e.target.closest(".chip"); if(!b) return;
+  f=b.getAttribute("data-f"); raw=b.getAttribute("data-v"); v=f==="age"?raw:parseInt(raw,10);
+  if(f==="procs"||f==="prot"){ if(rec[f][v]===2) delete rec[f][v]; else rec[f][v]=2; }
+  else if(rec[f].v===v&&rec[f].s===2) rec[f]={v:null,s:0};
+  else rec[f]={v:v,s:2};
+  renderFields();
+});
+$("confirm-all").addEventListener("click",function(){
+  CORE.forEach(function(f){ if(rec[f].s===1) rec[f].s=2; });
+  ["procs","prot"].forEach(function(f){ Object.keys(rec[f]).forEach(function(id){rec[f][id]=2;}); });
+  renderFields();
+});
+function resetCapture(){ rec=blank(); lastEvidence=[]; lastYears=null; lastSugg={}; lastAlts=[]; lastWhy={}; lastAsk=false; $("find").value=""; $("note").value=""; fitNote(); lastFlag=""; renderEcho(); renderFields(); }
+$("clear-rec").addEventListener("click",function(){resetCapture();$("toast").textContent="";});
+$("save-rec").addEventListener("click",function(){
+  var row={t:Date.now()}, n=0;
+  CORE.forEach(function(f){ row[f]=rec[f].s===2?rec[f].v:null; if(row[f]!==null) n++; });
+  ["procs","prot"].forEach(function(f){ row[f]=Object.keys(rec[f]).filter(function(id){return rec[f][id]===2;}).map(Number); });
+  if(!n&&!row.procs.length&&!row.prot.length){ $("toast").textContent="Nothing confirmed yet. Tap the boxes that are right, then save."; return; }
+  row.years=(row.age!==null&&lastYears!==null&&band(lastYears)===row.age)?lastYears:null;
+  var day=load("mds.day",[]); day.push(row); save("mds.day",day);
+  undoSnap={t:row.t,note:$("note").value,rec:JSON.stringify(rec)};
+  resetCapture();
+  $("toast").innerHTML="Saved "+n+" of 5 fields. Patient "+day.length+'. <button type="button" class="lnk" id="undo">Undo</button>';
+});
+var undoSnap=null;
+$("toast").addEventListener("click",function(e){
+  if(!e.target.closest("#undo")||!undoSnap) return;
+  var day=load("mds.day",[]), last=day[day.length-1];
+  if(!last||last.t!==undoSnap.t){ $("toast").textContent="Could not undo: the list changed."; undoSnap=null; return; }
+  day.pop(); save("mds.day",day);
+  $("note").value=undoSnap.note; runRules(); rec=JSON.parse(undoSnap.rec); renderFields(); undoSnap=null;
+  $("toast").textContent="Save undone. The patient is back on screen.";
+});
+function effTheme(){ return document.documentElement.getAttribute("data-theme")||((window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches)?"dark":"light"); }
+function paintTheme(){ $("theme").textContent=effTheme()==="dark"?"Light":"Dark"; $("theme").setAttribute("aria-label","Switch to "+$("theme").textContent.toLowerCase()+" colours"); }
+(function(){ var th=load("mds.theme",null); if(th==="light"||th==="dark") document.documentElement.setAttribute("data-theme",th); paintTheme(); if(load("mds.keys","on")==="off") document.body.classList.add("nokeys"); })();
+$("theme").addEventListener("click",function(){ var n=effTheme()==="dark"?"light":"dark"; document.documentElement.setAttribute("data-theme",n); save("mds.theme",n); paintTheme(); });
+function setKeys(on){ document.body.classList.toggle("nokeys",!on); save("mds.keys",on?"on":"off"); }
+$("keys-off").addEventListener("click",function(){setKeys(false);});
+$("keys-on").addEventListener("click",function(){setKeys(true);});
+var ex=$("examples");
+ex.innerHTML='<option value="">Examples</option>'+EXAMPLES.map(function(e,i){return '<option value="'+i+'">'+esc(e.label)+"</option>";}).join("");
+ex.addEventListener("change",function(){ if(ex.value==="") return; rec=blank(); $("note").value=EXAMPLES[+ex.value].text; ex.value=""; $("toast").textContent=""; $("ai-msg").textContent=""; runRules(); });
+
+/* ---------- optional: Claude as a second suggester, and dictation ---------- */
+function aiPrompt(note){
+  var list=function(a){return items(a).map(function(o){return o.id+" = "+itemName(o.id)+(defOf(o)?" ("+defOf(o)+")":"");}).join("\n");};
+  return "You code one emergency medical team consultation note into the WHO EMT Minimum Data Set. The note may be in any language and is synthetic.\n"+
+  "Return only JSON with these keys:\n"+
+  '{"sex":1|2|3|null,"age":"<1"|"1-4"|"5-17"|"18-64"|"65+"|null,"event":number|null,"procs":[numbers],"outcome":number|null,"relation":number|null,"prot":[numbers],"quotes":{"sex":"","age":"","event":"","outcome":"","relation":"","also":""},"ambiguity":"at most 20 words about the health event only, or empty"}\n'+
+  "For every value you give, put in quotes the exact words from the note that it rests on, copied character for character, in the note's own language (quotes.also covers procs and prot). A value whose quote is not found in the note is thrown away. "+
+  "Use null when the note does not say. Do not guess. If the injury severity falls between two definitions, set event to null and explain in ambiguity.\n\n"+
+  "sex:\n"+list(SEX)+"\n\nevent:\n"+list(EVENTS)+"\n\nprocs:\n"+list(PROCS)+"\n\noutcome:\n"+list(OUTCOMES)+"\n\nrelation (to the disaster):\n"+list(RELATION)+"\n\nprot:\n"+list(PROT)+"\n\nNote:\n"+note;
+}
+function ids(list){return list.map(function(o){return o.id;});}
+/* Quote gate, the rule from Rind: a suggestion from the model is shown only if the words it quotes are in the note. */
+function gateAI(r,note){
+  var norm=function(x){return String(x||"").toLowerCase().replace(/\s+/g," ").trim();}, N=norm(note), q=(r&&r.quotes)||{}, why={}, dropped=[], kept=0;
+  var backed=function(k){ var v=norm(q[k]); return v.length>=1&&N.indexOf(v)>=0; };
+  var sg={sex:clean(r.sex,ids(SEX)),age:clean(r.age,AGE),event:clean(r.event,ids(items(EVENTS))),outcome:clean(r.outcome,ids(OUTCOMES)),relation:clean(r.relation,ids(RELATION)),
+    procs:(r.procs||[]).filter(function(x){return ids(PROCS).indexOf(x)>=0;}),prot:(r.prot||[]).filter(function(x){return ids(PROT).indexOf(x)>=0;})};
+  CORE.forEach(function(k){ if(sg[k]===null) return; if(backed(k)){ why[k]=[String(q[k]).trim()]; kept++; } else { dropped.push(FIELD_NAME[k].toLowerCase()); sg[k]=null; } });
+  if(sg.procs.length||sg.prot.length){ if(backed("also")){ why.procs=[String(q.also).trim()]; kept++; } else { dropped.push("procedures and concerns"); sg.procs=[]; sg.prot=[]; } }
+  return {sg:sg,why:why,dropped:dropped,kept:kept};
+}
+function clean(v,allowed){return allowed.indexOf(v)>=0?v:null;}
+if(window.claude&&typeof window.claude.use==="function"){
+  window.claude.use("sample").then(function(sample){
+    if(!sample) return;
+    var b=$("btn-ai"); b.hidden=false;
+    b.addEventListener("click",function(){
+      var note=$("note").value.trim(); if(!note){$("ai-msg").textContent="Write or load a note first.";return;}
+      b.disabled=true; $("ai-msg").textContent="Asking Claude...";
+      sample.json(aiPrompt(note),{modelTier:"default"}).then(function(r){
+        if(typeof r==="string"){ try{r=JSON.parse(r);}catch(e){r=null;} }
+        if(!r||typeof r!=="object") throw new Error("bad answer");
+        var g=gateAI(r,note);
+        applySuggestion(g.sg);
+        lastEvidence=[]; lastWhy=g.why; lastAsk=false; lastSugg={event:g.sg.event,outcome:g.sg.outcome};
+        lastFlag=r.ambiguity?'<div class="flag"><b>Claude is unsure.</b> '+esc(r.ambiguity)+"</div>":"";
+        renderEcho(); renderFields(); $("ai-msg").textContent=(g.kept?"Claude suggested "+g.kept+". ":"Claude suggested nothing it could back with the note's own words. ")+(g.dropped.length?"Dropped, no matching words in the note: "+g.dropped.join(", ")+". ":"")+"Nothing counts until you confirm it.";
+      }).catch(function(err){
+        $("ai-msg").textContent=err&&err.code==="rate_limited"?"Claude is busy. Try again in a minute. The offline rules still work.":"Claude could not answer. The offline rules still work.";
+        if(err&&err.code==="not_granted") b.hidden=true;
+      }).then(function(){b.disabled=false;});
+    });
+  });
+  window.claude.use("dictation").then(function(d){
+    if(!d) return;
+    var b=$("btn-mic"), on=false, base=""; b.hidden=false;
+    var join=function(a,t){return a+(a&&t?" ":"")+t;};
+    d.onPartial(function(p){ $("note").value=join(base,p.text||""); fitNote(); $("nview").textContent=$("note").value; });
+    d.onFinal(function(p){ base=join(base,(p.text||"").trim()); $("note").value=base; runRules(); });
+    d.onState(function(s){
+      on=s.state==="listening"; b.textContent=on?"Stop":"Dictate";
+      $("ai-msg").textContent=on?"Listening. Speak the note, then tap Stop.":"";
+      if(!on) runRules();
+    });
+    b.addEventListener("click",function(){
+      if(on){ d.stop(); return; }
+      base=$("note").value.trim();
+      d.start().catch(function(err){ $("ai-msg").textContent=err&&err.code==="not_granted"?"Microphone not allowed. Type the note instead.":"Dictation did not start. Tap Dictate to try again."; if(err&&err.code==="not_granted") b.hidden=true; });
+    });
+  });
+}
+
+/* ---------- daily report ---------- */
+function renderReport(){
+  var day=load("mds.day",[]), n=day.length;
+  var pct=function(fn){return n?Math.round(100*day.filter(fn).length/n):0;};
+  var tiles=[["Consultations",n,false],["Sex and age recorded",pct(function(r){return r.sex!==null&&r.age!==null;})+"%"],["Health event recorded",pct(function(r){return r.event!==null;})+"%"],["Outcome recorded",pct(function(r){return r.outcome!==null;})+"%"],["Relation recorded",pct(function(r){return r.relation!==null;})+"%"]];
+  $("tiles").innerHTML=tiles.map(function(t,i){var low=i>0&&n&&parseInt(t[1],10)<80;return '<div class="tile'+(low?" low":"")+'"><b>'+esc(t[1])+"</b>"+esc(t[0])+"</div>";}).join("");
+  var tl=tally(day), count=tl.count, u5=tl.u5;
+  var max=1; Object.keys(count).forEach(function(k){max=Math.max(max,count[k]);});
+  var secs=[["Sex",SEX],["Health events",EVENTS],["Procedures",PROCS],["Outcomes",OUTCOMES],["Relation to the event",RELATION],["Protection",PROT]];
+  var h='<tr><th>No.</th><th>Item</th><th class="n">Under 5</th><th class="n">Total</th></tr>';
+  secs.forEach(function(s){
+    h+='<tr class="sec"><td colspan="4">'+esc(s[0])+"</td></tr>";
+    items(s[1]).forEach(function(o){ var c=count[o.id]||0; h+='<tr><td class="no">'+no(o.id)+"</td><td>"+esc(itemName(o.id))+(c?'<span class="bar" style="width:'+Math.round(90*c/max)+'px"></span>':"")+'</td><td class="n">'+(u5[o.id]||0)+'</td><td class="n">'+c+"</td></tr>"; });
+  });
+  $("tally").innerHTML=h;
+  $("copy-report").onclick=function(){copy(buildExport($("export-kind").value,day),$("report-msg"));};
+}
+$("load-day").addEventListener("click",function(){
+  var day=load("mds.day",[]);
+  [[1,"18-64",4,35,40,[],[]],[1,"5-17",7,33,41,[27],[]],[1,"18-64",null,33,41,[27],[]],[2,"1-4",10,32,41,[],[]],[3,"18-64",5,34,null,[26],[46]],[2,"65+",8,null,40,[],[]],[1,"1-4",9,null,null,[],[]],[2,"18-64",6,35,40,[],[]]]
+   .forEach(function(a){day.push({t:Date.now(),sex:a[0],age:a[1],event:a[2],outcome:a[3],relation:a[4],procs:a[5],prot:a[6]});});
+  save("mds.day",day); renderReport(); $("report-msg").textContent="Added 8 examples, some with gaps on purpose.";
+});
+var armed={};
+function twoStep(btn,label,fn){
+  btn.addEventListener("click",function(){
+    if(armed[btn.id]){ armed[btn.id]=false; btn.textContent=label; fn(); return; }
+    armed[btn.id]=true; btn.textContent="Tap again to confirm";
+    setTimeout(function(){armed[btn.id]=false;btn.textContent=label;},3000);
+  });
+}
+twoStep($("clear-day"),"Clear the day",function(){save("mds.day",[]);renderReport();$("report-msg").textContent="Day cleared.";});
+
+/* ---------- agreement study ---------- */
+var INJ=EVENTS.filter(function(e){return e.g==="Trauma";});
+var run=null;
+function shuffle(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t;}return a;}
+/* Balanced forms: A shows the tool on cases 1,3,5..., B on 2,4,6..., so every case is coded in both arms.
+   SEED: suggestions that are wrong on purpose, fixed per form, to measure automation bias. Raters are told at the end. */
+var SEED={A:{v07:8,v09:4},B:{v08:6,v10:7}};
+function armFor(form,idx){return ((idx%2===0)===(form==="A"))?"tool":"none";}
+function ratersByForm(all){var s={A:{},B:{}};all.forEach(function(a){if(s[a.form])s[a.form][a.rater]=1;});return s;}
+function caseText(id){for(var i=0;i<VIGNETTES.length;i++)if(VIGNETTES[i].id===id)return VIGNETTES[i].text;return id;}
+function renderStudy(){
+  var el=$("study-run");
+  if(!run){
+    var by=ratersByForm(load("mds.study",[])), next=Object.keys(by.A).length<=Object.keys(by.B).length?"A":"B";
+    el.innerHTML="<h2>Code 12 injury cases</h2><p>Each case is one short note. Pick the injury category you would tick. Half the cases show a suggestion from the tool and half show nothing. The tool can be wrong, so you decide. Each answer is timed.</p>"+
+      '<p class="small">Forms A and B swap which cases show the tool, so every case is coded both ways. This device alternates them. Change the form only if you were told which one to use.</p>'+
+      '<div class="row"><input type="text" id="rater" placeholder="Your initials" maxlength="12" autocomplete="off"><select id="form" aria-label="Form"><option value="A"'+(next==="A"?" selected":"")+'>Form A</option><option value="B"'+(next==="B"?" selected":"")+'>Form B</option></select><button class="primary" id="start-study">Start</button></div><div class="toast" id="start-msg"></div>';
+    $("start-study").addEventListener("click",function(){
+      var name=$("rater").value.trim(), form=$("form").value;
+      if(!name){$("start-msg").textContent="Add initials so answers can be told apart.";return;}
+      if(load("mds.study",[]).some(function(a){return a.rater===name;})){$("start-msg").textContent="Those initials are already used on this device. Add a number.";return;}
+      run={rater:name,form:form,i:0,items:shuffle(VIGNETTES.map(function(v,i){return {v:v,arm:armFor(form,i)};})),answers:[],t0:0};
+      renderStudy();
+    });
+    return;
+  }
+  if(run.i>=run.items.length){
+    var all=load("mds.study",[]); save("mds.study",all.concat(run.answers));
+    var right=run.answers.filter(function(a){return a.choice===a.ref;}).length;
+    var seeded=run.answers.filter(function(a){return a.seeded;});
+    var debrief=seeded.length?'<div class="flag"><b>One thing we held back.</b> '+seeded.length+" of the suggestions you saw were planted, to measure how far a suggestion shifts people's answers.<ul>"+
+      seeded.map(function(a){return "<li>"+esc(caseText(a.case))+" The tool said "+no(a.sugg)+", "+esc(itemName(a.sugg))+". You chose "+no(a.choice)+".</li>";}).join("")+"</ul>Please keep this from the next rater.</div>":"";
+    el.innerHTML="<h2>Done, thank you</h2><p>"+esc(run.rater)+" matched the reference on "+right+" of "+run.answers.length+" cases.</p>"+debrief+"<p class=\"small\">The reference is one student's reading of the definitions. Disagreeing with it may mean the definition is unclear, which is the point of the study.</p><div class=\"row\"><button id=\"again\" class=\"primary\">Next rater</button></div>";
+    run=null; $("again").addEventListener("click",renderStudy); renderStudyResults(); return;
+  }
+  var it=run.items[run.i], sg=it.arm==="tool"?classify(it.v.text):null, shown=null, seeded=false;
+  if(sg){ var w=SEED[run.form]&&SEED[run.form][it.v.id]; if(w&&sg.event!==null){shown=w;seeded=true;} else shown=sg.event; }
+  var box="";
+  if(sg){
+    box=shown?'<div class="flag"><b>Tool suggests '+no(shown)+", "+esc(itemName(shown))+".</b> You decide.</div>":'<div class="flag"><b>No suggestion.</b></div>';
+    if(sg.flag&&!seeded) box+='<div class="flag">'+sg.flag+"</div>";
+  }
+  el.innerHTML='<div class="small">Case '+(run.i+1)+" of "+run.items.length+" for "+esc(run.rater)+"</div>"+'<div class="vig">'+esc(it.v.text)+"</div>"+box+
+    '<h3>Which injury category?</h3><div class="choices">'+INJ.map(function(o){return '<button data-c="'+o.id+'">'+no(o.id)+". "+esc(itemName(o.id))+"<small>"+esc(defOf(o))+"</small></button>";}).join("")+"</div>";
+  run.t0=performance.now();
+  el.querySelector(".choices").addEventListener("click",function(e){
+    var b=e.target.closest("button"); if(!b) return;
+    run.answers.push({rater:run.rater,form:run.form,case:it.v.id,arm:it.arm,ref:vg(it.v).ref,hard:vg(it.v).hard,profile:profileId,sugg:shown,seeded:seeded,choice:parseInt(b.getAttribute("data-c"),10),ms:Math.round(performance.now()-run.t0),t:Date.now()});
+    run.i++; renderStudy();
+  });
+}
+function median(a){if(!a.length)return null;a=a.slice().sort(function(x,y){return x-y;});var m=Math.floor(a.length/2);return a.length%2?a[m]:(a[m-1]+a[m])/2;}
+function renderStudyResults(){
+  var all=load("mds.study",[]), raters={}; all.forEach(function(a){raters[a.rater]=1;});
+  if(!all.length){ $("study-results").innerHTML='<p class="small">No answers yet. Run it yourself, then get more raters. Agreement between raters needs at least two people on each form, so four in total.</p>'; return; }
+  var cover=[];
+  var row=function(arm,label){
+    var a=all.filter(function(x){return x.arm===arm;}), byCase={};
+    a.forEach(function(x){(byCase[x.case]=byCase[x.case]||[]).push(x.choice);});
+    var k=randolph(Object.keys(byCase).map(function(c){return byCase[c];}),INJ.length);
+    cover.push(label.toLowerCase()+" "+(k?k.cases:0)+" of "+VIGNETTES.length);
+    var med=median(a.map(function(x){return x.ms;}));
+    return "<tr><td>"+label+'</td><td class="n">'+a.length+'</td><td class="n">'+(a.length?Math.round(100*a.filter(function(x){return x.choice===x.ref;}).length/a.length)+"%":"")+'</td><td class="n">'+(k?k.kappa.toFixed(2):"needs 2 raters")+'</td><td class="n">'+(med!==null?(med/1000).toFixed(1)+" s":"")+"</td></tr>";
+  };
+  var rows=row("none","No tool")+row("tool","With tool"), by=ratersByForm(all);
+  var tool=all.filter(function(x){return x.arm==="tool"&&x.sugg!==null;});
+  var planted=tool.filter(function(x){return x.seeded;});
+  var lure={}; planted.forEach(function(x){lure[x.case]=x.sugg;});
+  var base=all.filter(function(x){return x.arm==="none"&&lure[x.case]!==undefined;});
+  $("study-results").innerHTML='<p class="small">'+Object.keys(raters).length+" rater(s), "+all.length+" answers. Form A: "+Object.keys(by.A).length+", form B: "+Object.keys(by.B).length+".</p>"+
+    "<h3>Shift toward the suggestion</h3><p>Raters picked the planted answer in "+planted.filter(function(x){return x.choice===x.sugg;}).length+" of "+planted.length+" cases where the tool showed it, and in "+base.filter(function(x){return x.choice===lure[x.case];}).length+" of "+base.length+" answers on the same cases with no tool.</p>"+
+    '<p class="small">This is the measure to trust. It needs no reference answer. Overall, raters took the tool\'s suggestion in '+tool.filter(function(x){return x.choice===x.sugg;}).length+" of "+tool.length+" cases where it made one.</p>"+
+    '<h3>Agreement and time</h3><div class="tscroll"><table><tr><th>Arm</th><th class="n">Answers</th><th class="n">Match reference</th><th class="n">Kappa between raters</th><th class="n">Median time</th></tr>'+rows+"</table></div>"+
+    '<p class="small">Kappa is Randolph\'s free-marginal kappa over 5 categories, the statistic in the 2020 paper, counted on cases with two or more raters in that arm: '+cover.join(", ")+'. Agreement with the tool rises whenever raters see the same suggestion, right or wrong, so the with-tool kappa shows anchoring, not better coding. The reference answers are one person\'s reading. Placeholder cases: nothing here can be compared with the published 0.59.</p>'+
+    '<p class="small">Planted suggestions are deception. Get ethics approval before running this with real participants.</p>';
+}
+$("copy-study").addEventListener("click",function(){
+  var all=load("mds.study",[]), rows=["rater,form,form_version,case,arm,reference,suggestion,seeded,choice,ms,between_definitions"];
+  all.forEach(function(a){rows.push([a.rater.replace(/[",\n]/g," "),a.form||"",a.profile||"",a.case,a.arm,a.ref,a.sugg===null?"":a.sugg,a.seeded?1:0,a.choice,a.ms,a.hard?1:0].join(","));});
+  copy(rows.join("\n"),$("study-msg"));
+});
+$("show-results").addEventListener("click",function(){ var r=$("study-results"), open=r.hidden; r.hidden=!open; this.textContent=open?"Hide results":"Show results"; this.setAttribute("aria-expanded",String(open)); });
+twoStep($("clear-study"),"Delete study data",function(){save("mds.study",[]);renderStudyResults();$("study-msg").textContent="Study data deleted.";});
+
+/* ---------- form setup ---------- */
+profileId=load("mds.profile","who2019"); if(!PROFILES[profileId]) profileId="who2019";
+var savedExtras=load("mds.extras",null); if(Array.isArray(savedExtras)&&savedExtras.length===4) EXTRA_LABELS=savedExtras;
+function renderSetup(){ var p=PROFILES[profileId]; $("profile").value=profileId; $("profile-src").textContent=p.src; $("extras").hidden=!p.extras;
+  [].forEach.call($("export-kind").options,function(o){ if(o.value.indexOf("mm_")===0){ o.disabled=!p.mm; if(!p.mm&&o.selected) $("export-kind").value="tally"; } }); }
+$("profile").innerHTML=Object.keys(PROFILES).map(function(k){return '<option value="'+k+'">'+esc(PROFILES[k].label)+"</option>";}).join("");
+$("extras-row").innerHTML=EXTRA_LABELS.map(function(t,i){return '<input type="text" data-x="'+i+'" maxlength="40" placeholder="Item '+(19+i)+', not used" value="'+esc(t)+'" aria-label="Label for item '+(19+i)+'">';}).join("");
+$("profile").addEventListener("change",function(){profileId=$("profile").value;save("mds.profile",profileId);renderSetup();renderFields();renderReport();});
+$("extras-row").addEventListener("change",function(e){var i=e.target.getAttribute("data-x");if(i===null)return;EXTRA_LABELS[+i]=e.target.value.trim();save("mds.extras",EXTRA_LABELS);renderFields();renderReport();});
+var savedTeam=load("mds.team",null); if(savedTeam&&typeof savedTeam==="object") ["org","team","type","date"].forEach(function(k){ if(typeof savedTeam[k]==="string") TEAM[k]=savedTeam[k]; });
+$("t-org").value=TEAM.org; $("t-team").value=TEAM.team; $("t-type").value=TEAM.type; $("t-date").value=TEAM.date;
+$("team-row").addEventListener("change",function(){ TEAM={org:$("t-org").value.trim(),team:$("t-team").value.trim(),type:$("t-type").value,date:$("t-date").value}; save("mds.team",TEAM); });
+renderSetup();
+
+/* ---------- start in a working state ---------- */
+rec=blank();
+$("note").value=EXAMPLES[6].text;
+runRules();
+route();
+})();
+</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){});});}</script>
+</body>
+</html>
