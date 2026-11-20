@@ -293,6 +293,9 @@ header nav a{font-size:14px!important;font-weight:600;letter-spacing:0!important
 }
 @media (min-width:821px) and (min-height:760px){.tl,.chip.tl{font-size:16px!important}.tl i{font-size:12px!important}}
 h1{line-height:1.25}
+h1.logo{line-height:0;overflow:visible;color:var(--ink)}
+h1.logo svg{height:24px;width:auto;display:block}
+@media (max-width:480px){h1.logo svg{height:21px}}
 @media (max-height:700px) and (max-width:820px){
   .tl,.chip.tl{min-height:31px!important}
   #v-capture .panel{padding:6px 8px}
@@ -313,7 +316,7 @@ h1{line-height:1.25}
 <body>
 <div class="wrap">
 <header>
-  <h1>St<span>et</span></h1>
+  <h1 class="logo"><span class="sr">Stet</span><svg xmlns="http://www.w3.org/2000/svg" viewBox="7 -1574 4606 1657" aria-hidden="true" focusable="false"><path fill="currentColor" d="M689 24C1073 24 1301 -153 1301 -453C1301 -683 1158 -814 828 -880L697 -906C527 -941 456 -986 456 -1067C456 -1160 551 -1225 687 -1225C829 -1225 924 -1149 934 -1026H1267C1258 -1331 1039 -1514 682 -1514C332 -1514 96 -1327 96 -1050C96 -833 245 -689 536 -629L689 -598C868 -561 945 -512 945 -427C945 -329 844 -265 692 -265C520 -265 415 -349 410 -492H67C67 -163 292 24 689 24Z M2088.04 -1056H1871.04V-1344H1526.04V-1056H1346.04V-790H1526.04V-297C1526.04 -92 1640.04 0 1893.04 0H2088.04V-266H1969.04C1892.04 -266 1871.04 -287 1871.04 -355V-790H2088.04Z M2685.08 24C2952.08 24 3165.08 -125 3204.08 -338H2895.08C2870.08 -268 2798.08 -224 2697.08 -224C2561.08 -224 2481.08 -309 2477.08 -443H3212.08V-536C3212.08 -856 2993.08 -1080 2676.08 -1080C2363.08 -1080 2141.08 -850 2141.08 -528C2141.08 -206 2361.08 24 2685.08 24ZM2479.08 -649C2494.08 -760 2569.08 -826 2685.08 -826C2800.08 -826 2876.08 -760 2891.08 -649Z M3980.12 -1056H3763.12V-1344H3418.12V-1056H3238.12V-790H3418.12V-297C3418.12 -92 3532.12 0 3785.12 0H3980.12V-266H3861.12C3784.12 -266 3763.12 -287 3763.12 -355V-790H3980.12Z"/><clipPath id="w"><circle cx="4322.8" cy="-230.9" r="230.9"/></clipPath><circle cx="4322.8" cy="-230.9" r="230.9" fill="#D9620F"/><circle cx="4322.8" cy="-295.6" r="230.9" fill="#FF8A2A" clip-path="url(#w)"/></svg></h1>
   <nav aria-label="Views">
     <a href="#capture" data-tab="capture">Capture</a>
     <a href="#report" data-tab="report">Report</a>
